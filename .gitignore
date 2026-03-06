@@ -1,0 +1,15 @@
+# Carpetas de compilación
+Debug/
+Release/
+
+# Archivos compilados y binarios
+*.o
+*.elf
+*.bin
+*.hex
+*.map
+*.su
+
+# Archivos de configuración locales del usuario (opcional)
+.metadata/
+.settings/
