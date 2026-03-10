@@ -18,12 +18,14 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "fatfs.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
 #include "string.h"
 #include <adc_AMS.h>
+#include <SD_Card.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,6 +49,8 @@ ADC_HandleTypeDef hadc2;
 DMA_HandleTypeDef hdma_adc1;
 DMA_HandleTypeDef hdma_adc2;
 
+SD_HandleTypeDef hsd;
+
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 
@@ -67,6 +71,7 @@ static void MX_ADC1_Init(void);
 static void MX_ADC2_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_SDIO_SD_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -111,28 +116,42 @@ int main(void)
   MX_ADC2_Init();
   MX_TIM3_Init();
   MX_TIM2_Init();
+  MX_SDIO_SD_Init();
+  MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
 
   AMS_ADC_Init(&adc_raw, &hadc1, &hadc2, &htim2, &htim3);
+
+  // Retardo para estabilizar la SD al arrancar
+  HAL_Delay(500);
+
+  SD_Card_Test();
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   uint32_t last_update = 0;
+  uint32_t last_sd_log = 0;
+  
   while (1)
   {
-	  if (HAL_GetTick() - last_update >= 250) {
-		  last_update = HAL_GetTick();
+      if (HAL_GetTick() - last_update >= 250) {
+          last_update = HAL_GetTick();
 
-		  AMS_ADC_ProcessVoltages(&adc_raw);
-		  AMS_CalculateVehicleData(&adc_raw, &gekko);
+          AMS_ADC_ProcessVoltages(&adc_raw);
+          AMS_CalculateVehicleData(&adc_raw, &gekko);
 
           printf("\r\n Bateria: %lu.%02lu V | Susp 1: %lu.%lu mm | Susp 2: %lu.%lu mm",
                  gekko.bateria_12v_mV / 1000, (gekko.bateria_12v_mV % 1000) / 10,
                  gekko.recorrido_susp_1_dmm / 10, gekko.recorrido_susp_1_dmm % 10,
                  gekko.recorrido_susp_2_dmm / 10, gekko.recorrido_susp_2_dmm % 10);
-	  }
+      }
+      
+      if (HAL_GetTick() - last_sd_log >= 500) {
+          last_sd_log = HAL_GetTick();
+          SD_Card_Log_Gekko(&gekko);
+      }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -165,7 +184,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLM = 8;
   RCC_OscInitStruct.PLL.PLLN = 180;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = 4;
+  RCC_OscInitStruct.PLL.PLLQ = 8;
   RCC_OscInitStruct.PLL.PLLR = 2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -304,6 +323,34 @@ static void MX_ADC2_Init(void)
   /* USER CODE BEGIN ADC2_Init 2 */
 
   /* USER CODE END ADC2_Init 2 */
+
+}
+
+/**
+  * @brief SDIO Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SDIO_SD_Init(void)
+{
+
+  /* USER CODE BEGIN SDIO_Init 0 */
+
+  /* USER CODE END SDIO_Init 0 */
+
+  /* USER CODE BEGIN SDIO_Init 1 */
+
+  /* USER CODE END SDIO_Init 1 */
+  hsd.Instance = SDIO;
+  hsd.Init.ClockEdge = SDIO_CLOCK_EDGE_RISING;
+  hsd.Init.ClockBypass = SDIO_CLOCK_BYPASS_DISABLE;
+  hsd.Init.ClockPowerSave = SDIO_CLOCK_POWER_SAVE_DISABLE;
+  hsd.Init.BusWide = SDIO_BUS_WIDE_1B;
+  hsd.Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
+  hsd.Init.ClockDiv = 4;
+  /* USER CODE BEGIN SDIO_Init 2 */
+
+  /* USER CODE END SDIO_Init 2 */
 
 }
 
@@ -543,16 +590,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF6_SPI3;
   HAL_GPIO_Init(I2S3_CK_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : uSD_CLK_Pin uSD_D3_Pin uSD_D2_Pin uSD_D1_Pin
-                           uSD_D0_Pin */
-  GPIO_InitStruct.Pin = uSD_CLK_Pin|uSD_D3_Pin|uSD_D2_Pin|uSD_D1_Pin
-                          |uSD_D0_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF12_SDIO;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
   /*Configure GPIO pin : OTG_FS1_OverCurrent_Pin */
   GPIO_InitStruct.Pin = OTG_FS1_OverCurrent_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
@@ -640,14 +677,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED4_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : uSD_CMD_Pin */
-  GPIO_InitStruct.Pin = uSD_CMD_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF12_SDIO;
-  HAL_GPIO_Init(uSD_CMD_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : D23_Pin D21_Pin D22_Pin SDNE0_Pin
                            SDCKE0_Pin D20_Pin D17_Pin D19_Pin
