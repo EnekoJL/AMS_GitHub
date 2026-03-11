@@ -5,9 +5,9 @@
  * @date    6 de Marzo de 2026
  */
 
-#include "Drivers_Custom/adc_AMS.h"
-#include <stddef.h> // Para NULL
-#include "Middleware/DataBroker.h" // In order to access the DataBroker inside interrupts
+#include "Drivers_Custom/AMS_adc_driver.h"
+#include <stddef.h> 
+#include "Middleware/DataBroker.h" 
 
 /* ================= VARIABLES PRIVADAS (STATIC) ====================== */
 static ADC_HandleTypeDef *p_hadc1 = NULL;
@@ -75,5 +75,3 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
     /* 2. Devolvemos los datos procesados al broker */
     b_Broker_Update_ADCData(&local_adc);
 }
-
-// Funciones de calculo eliminadas, movidas a la Capa de Dominio (Algorithms_Sensors.c)

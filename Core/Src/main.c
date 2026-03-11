@@ -23,10 +23,13 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
-#include "Drivers_Custom/adc_AMS.h"
-#include "Algorithms/Algorithms_Sensors.h"
+#include "Drivers_Custom/AMS_adc_driver.h"
+#include "Algorithms/AMS_sensors.h"
 #include "Middleware/logger_task.h"
+#include "Middleware/led_manager_task.h"
 #include "Middleware/DataBroker.h"
+/* [PERSISTENCIA] Descomentar para activar la persistencia en Flash: */
+#include "Middleware/AMS_persistence_manager.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -121,13 +124,12 @@ int main(void)
 
   Broker_Init();
   
-  // Inicializamos las DMAs apuntando a sus buffers estáticos dentro del driver
   vd_AMS_ADC_Init(&hadc1, &hadc2, &htim2, &htim3);
-
-  // Retardo para estabilizar la SD al arrancar
-  HAL_Delay(500);
-
   vd_Logger_Init();
+  vd_LED_Manager_Init();
+
+  /* [PERSISTENCIA] Descomentar la siguiente línea para activar la carga de datos desde Flash: */
+  // vd_Persist_Init();
 
   /* USER CODE END 2 */
 
@@ -138,6 +140,9 @@ int main(void)
   
   while (1)
   {
+      // Ejecutar la máquina de estados de los LEDs (No bloqueante)
+      vd_LED_Manager_Process();
+
       if (HAL_GetTick() - last_update >= 250) {
           last_update = HAL_GetTick();
 
@@ -154,11 +159,30 @@ int main(void)
           b_Broker_Update_ADCData(&local_adc);
           b_Broker_Update_VehicleState(&local_veh);
 
-          //debug
-          printf("\r\n Bateria: %lu.%02lu V | Susp 1: %lu.%lu mm | Susp 2: %lu.%lu mm",
-                 local_veh.bateria_12v_mV / 1000, (local_veh.bateria_12v_mV % 1000) / 10,
-                 local_veh.recorrido_susp_1_dmm / 10, local_veh.recorrido_susp_1_dmm % 10,
-                 local_veh.recorrido_susp_2_dmm / 10, local_veh.recorrido_susp_2_dmm % 10);
+          // ====================================================
+          // DEBUG: Raw ADC vs Algoritmo
+          // ====================================================
+          printf("\r\n--- ADC RAW -------------------------------------------------\r\n");
+          printf("  ADC1 (Bat 12V):  raw=%4u  ->  %4lu mV (en pin)\r\n",
+                 local_adc.adc1_filtrado,
+                 local_adc.voltaje_adc1_mV);
+          printf("  ADC2 CH1 (Sus1): raw=%4u  ->  %4lu mV (en pin)\r\n",
+                 local_adc.adc2_ch1_filtrado,
+                 local_adc.voltaje_adc2_ch1_mV);
+          printf("  ADC2 CH2 (Sus2): raw=%4u  ->  %4lu mV (en pin)\r\n",
+                 local_adc.adc2_ch2_filtrado,
+                 local_adc.voltaje_adc2_ch2_mV);
+          printf("--- CALCULADO -----------------------------------------------\r\n");
+          printf("  Bateria 12V:  %lu.%02lu V\r\n",
+                 local_veh.bateria_12v_mV / 1000,
+                 (local_veh.bateria_12v_mV % 1000) / 10);
+          printf("  Suspension 1: %lu.%01lu mm\r\n",
+                 local_veh.recorrido_susp_1_dmm / 10,
+                 local_veh.recorrido_susp_1_dmm % 10);
+          printf("  Suspension 2: %lu.%01lu mm\r\n",
+                 local_veh.recorrido_susp_2_dmm / 10,
+                 local_veh.recorrido_susp_2_dmm % 10);
+          printf("------------------------------------------------------------\r\n");
       }
       
       if (HAL_GetTick() - last_sd_log >= 500) {
@@ -166,6 +190,14 @@ int main(void)
 
           vd_Logger_Process();
       }
+
+      /* [PERSISTENCIA] Descomentar el bloque siguiente para guardar en Flash cada 10s:
+      static uint32_t last_persist_save = 0;
+      if (HAL_GetTick() - last_persist_save >= 10000) {
+          last_persist_save = HAL_GetTick();
+          b_Persist_SaveConfig();
+      }
+      */
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

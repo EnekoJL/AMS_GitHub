@@ -6,7 +6,7 @@
  * @date    6 de Marzo de 2026
  */
 
-#include "Algorithms/Algorithms_Sensors.h"
+#include "Algorithms/AMS_sensors.h"
 #include <stddef.h>
 
 void Algorithms_Sensors_ProcessVoltages(AMS_ADC_Data_t *p_adc_data) {

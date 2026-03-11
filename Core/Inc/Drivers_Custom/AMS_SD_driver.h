@@ -1,5 +1,5 @@
 /*
- * SD_Card.h
+ * @file    AMS_SDCard_driver.h
  * Modulo para la gestion de la tarjeta MicroSD
  */
 

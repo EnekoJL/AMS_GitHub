@@ -3,7 +3,7 @@
  * Modulo para la gestion de la tarjeta MicroSD
  */
 
-#include "Drivers_Custom/SD_Card.h"
+#include "Drivers_Custom/AMS_SD_driver.h"
 #include <stdio.h>
 #include <string.h>
 

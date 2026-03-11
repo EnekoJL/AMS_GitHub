@@ -1,5 +1,5 @@
 /**
- * @file    adc_AMS.h
+ * @file    AMS_adc_driver.h
  * @brief   HEADER - Implementación del gestor de ADCs.
  * @author  Eneko Juanena
  * @date    6 de Marzo de 2026

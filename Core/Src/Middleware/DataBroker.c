@@ -10,19 +10,16 @@
 #include <string.h>   // Para memcpy
 #include <stddef.h>   // Para NULL
 
-/* ================= VARIABLES PRIVADAS (STATIC = "BASE DE DATOS") ====================== */
-/**
- * @brief Estado centralizado del vehículo. NADIE puede acceder a esto directamente.
- */
-static Vehicle_Data_t s_vehiculo_state = {0};
+/* ================= VARIABLES ESTATICAS (PRIVADAS) ====================== */
+static AMS_ADC_Data_t           s_adc_data          = {0};
+static Vehicle_Data_t           s_vehiculo_state    = {0};
+static AMS_LED_Mode_t           s_led_mode          = LED_MODE_ALL_OFF;
+static AMS_Persistent_Config_t  s_persistent_config = {0};
 
-/**
- * @brief Datos crudos de los ADC. NADIE puede acceder a esto directamente.
- */
-static AMS_ADC_Data_t s_adc_data = {0};
-
-/* NOTA: Cuando se active FreeRTOS, aquí se declararán los Mutex de FreeRTOS.
- *       Por ejemplo: static SemaphoreHandle_t s_mutex_vehiculo;
+/* [FUTURO FreeRTOS]: Aquí se declararán los Mutex estáticos.
+ *   static SemaphoreHandle_t s_mutex_vehiculo;
+ *   static SemaphoreHandle_t s_mutex_adc;
+ *   static SemaphoreHandle_t s_mutex_leds;
  */
 static bool b_is_initialized = false;
 
@@ -101,5 +98,38 @@ bool b_Broker_Update_ADCData(const AMS_ADC_Data_t *p_new_data) {
     
     // [FUTURO FreeRTOS]: xSemaphoreGive(s_mutex_adc);
 
+    return true;
+}
+
+/* ================= IMPLEMENTACION: ESTADOS DEL SISTEMA (LEDs) ========== */
+
+AMS_LED_Mode_t e_Broker_Get_LEDMode(void) {
+    // [FUTURO FreeRTOS]: xSemaphoreTake(s_mutex_leds, portMAX_DELAY);
+    AMS_LED_Mode_t current = s_led_mode;
+    // [FUTURO FreeRTOS]: xSemaphoreGive(s_mutex_leds);
+    return current;
+}
+
+void vd_Broker_Set_LEDMode(AMS_LED_Mode_t e_new_mode) {
+    if (!b_is_initialized) return;
+    // [FUTURO FreeRTOS]: xSemaphoreTake(s_mutex_leds, portMAX_DELAY);
+    s_led_mode = e_new_mode;
+    // [FUTURO FreeRTOS]: xSemaphoreGive(s_mutex_leds);
+}
+
+/* ================ IMPLEMENTACION: DATOS PERSISTENTES (FLASH) =========== */
+
+void vd_Broker_Set_PersistentConfig(const AMS_Persistent_Config_t *p_config) {
+    if (p_config == NULL || !b_is_initialized) return;
+    // [FUTURO FreeRTOS]: Mutex Take
+    memcpy(&s_persistent_config, p_config, sizeof(AMS_Persistent_Config_t));
+    // [FUTURO FreeRTOS]: Mutex Give
+}
+
+bool b_Broker_Get_PersistentConfig(AMS_Persistent_Config_t *p_out) {
+    if (p_out == NULL || !b_is_initialized) return false;
+    // [FUTURO FreeRTOS]: Mutex Take
+    memcpy(p_out, &s_persistent_config, sizeof(AMS_Persistent_Config_t));
+    // [FUTURO FreeRTOS]: Mutex Give
     return true;
 }

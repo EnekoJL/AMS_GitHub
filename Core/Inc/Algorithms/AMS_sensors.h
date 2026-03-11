@@ -1,5 +1,5 @@
 /**
- * @file    Algorithms_Sensors.h
+ * @file    AMS_sensors.h
  * @brief   Lógica algorítmica de dominio para los sensores analógicos (ADC).
  *          Conversión de milivoltios a magnitudes físicas, independiente del Hardware.
  * @author  Eneko Juanena
