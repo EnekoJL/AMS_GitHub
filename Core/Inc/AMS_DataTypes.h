@@ -21,11 +21,9 @@
  * @brief Estructura de hardware (Datos crudos ADC)
  */
 typedef struct {
-    uint16_t buffer_adc1[NUM_MUESTRAS];
     volatile uint16_t adc1_filtrado;
     uint32_t voltaje_adc1_mV;
 
-    uint16_t buffer_adc2[NUM_MUESTRAS * 2];
     volatile uint16_t adc2_ch1_filtrado;
     volatile uint16_t adc2_ch2_filtrado;
     uint32_t voltaje_adc2_ch1_mV;

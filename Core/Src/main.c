@@ -23,9 +23,10 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
-#include "string.h"
-#include <adc_AMS.h>
-#include <SD_Card.h>
+#include "Drivers_Custom/adc_AMS.h"
+#include "Algorithms/Algorithms_Sensors.h"
+#include "Middleware/logger_task.h"
+#include "Middleware/DataBroker.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -57,9 +58,7 @@ TIM_HandleTypeDef htim3;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-AMS_ADC_Data_t adc_raw;
-Vehicle_Data_t gekko;
-
+/* Global variables have been moved to DataBroker.c */
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -120,12 +119,15 @@ int main(void)
   MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
 
-  AMS_ADC_Init(&adc_raw, &hadc1, &hadc2, &htim2, &htim3);
+  Broker_Init();
+  
+  // Inicializamos las DMAs apuntando a sus buffers estáticos dentro del driver
+  vd_AMS_ADC_Init(&hadc1, &hadc2, &htim2, &htim3);
 
   // Retardo para estabilizar la SD al arrancar
   HAL_Delay(500);
 
-  SD_Card_Test();
+  vd_Logger_Init();
 
   /* USER CODE END 2 */
 
@@ -139,18 +141,30 @@ int main(void)
       if (HAL_GetTick() - last_update >= 250) {
           last_update = HAL_GetTick();
 
-          AMS_ADC_ProcessVoltages(&adc_raw);
-          AMS_CalculateVehicleData(&adc_raw, &gekko);
+          // 1. Obtener copia de los datos crudos del ADC
+          AMS_ADC_Data_t local_adc;
+          b_Broker_Get_ADCData(&local_adc);
 
+          Algorithms_Sensors_ProcessVoltages(&local_adc);
+          
+          Vehicle_Data_t local_veh;
+          b_Broker_Get_VehicleState(&local_veh);
+          Algorithms_Sensors_CalculateVehicleData(&local_adc, &local_veh);
+
+          b_Broker_Update_ADCData(&local_adc);
+          b_Broker_Update_VehicleState(&local_veh);
+
+          //debug
           printf("\r\n Bateria: %lu.%02lu V | Susp 1: %lu.%lu mm | Susp 2: %lu.%lu mm",
-                 gekko.bateria_12v_mV / 1000, (gekko.bateria_12v_mV % 1000) / 10,
-                 gekko.recorrido_susp_1_dmm / 10, gekko.recorrido_susp_1_dmm % 10,
-                 gekko.recorrido_susp_2_dmm / 10, gekko.recorrido_susp_2_dmm % 10);
+                 local_veh.bateria_12v_mV / 1000, (local_veh.bateria_12v_mV % 1000) / 10,
+                 local_veh.recorrido_susp_1_dmm / 10, local_veh.recorrido_susp_1_dmm % 10,
+                 local_veh.recorrido_susp_2_dmm / 10, local_veh.recorrido_susp_2_dmm % 10);
       }
       
       if (HAL_GetTick() - last_sd_log >= 500) {
           last_sd_log = HAL_GetTick();
-          SD_Card_Log_Gekko(&gekko);
+
+          vd_Logger_Process();
       }
     /* USER CODE END WHILE */
 
