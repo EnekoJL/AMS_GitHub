@@ -119,6 +119,7 @@ int main(void)
   uint16_t adcRaw = 0u;			//valor digital de lectura ADC, entre 0 y 4095 (12 bits)
   uint32_t delayMs = 250u; 		//ms de espera para printf en pantalla
   uint32_t voltaje_pin_mV = 0u; //Tensión en el pin del ADC
+  uint8_t pap = 8u;
 
   /* USER CODE END 2 */
 
