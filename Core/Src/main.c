@@ -148,6 +148,7 @@ int main(void)
 
           // 1. Obtener copia de los datos crudos del ADC
           AMS_ADC_Data_t local_adc;
+          b_Broker_Get_ADCData(&local_adc);
 
           Algorithms_Sensors_ProcessVoltages(&local_adc);
 
