@@ -123,7 +123,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   Broker_Init();
-  
+
   vd_AMS_ADC_Init(&hadc1, &hadc2, &htim2, &htim3);
   vd_Logger_Init();
   vd_LED_Manager_Init();
@@ -137,7 +137,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   uint32_t last_update = 0;
   uint32_t last_sd_log = 0;
-  
+
   while (1)
   {
       // Ejecutar la máquina de estados de los LEDs (No bloqueante)
@@ -148,10 +148,9 @@ int main(void)
 
           // 1. Obtener copia de los datos crudos del ADC
           AMS_ADC_Data_t local_adc;
-          b_Broker_Get_ADCData(&local_adc);
 
           Algorithms_Sensors_ProcessVoltages(&local_adc);
-          
+
           Vehicle_Data_t local_veh;
           b_Broker_Get_VehicleState(&local_veh);
           Algorithms_Sensors_CalculateVehicleData(&local_adc, &local_veh);
@@ -184,7 +183,7 @@ int main(void)
                  local_veh.recorrido_susp_2_dmm % 10);
           printf("------------------------------------------------------------\r\n");
       }
-      
+
       if (HAL_GetTick() - last_sd_log >= 500) {
           last_sd_log = HAL_GetTick();
 
