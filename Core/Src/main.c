@@ -113,6 +113,7 @@ int main(void)
   //AQUÍ INICIALIZAMOS EL DMA Y EL TIMER 3
   HAL_ADC_Start_DMA(&hadc2, (uint32_t*)buffer_adc2, NUM_MUESTRAS);
   HAL_TIM_Base_Start(&htim3);
+  volatile uint8_t Prueba = 0;
 
 
   //Estas variables son para copiar el valor del ADC y calcular la tensión leída
