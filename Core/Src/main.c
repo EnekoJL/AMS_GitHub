@@ -143,7 +143,7 @@ int main(void)
       // Ejecutar la máquina de estados de los LEDs (No bloqueante)
       vd_LED_Manager_Process();
 
-      if (HAL_GetTick() - last_update >= 250) {
+      if (HAL_GetTick() - last_update >= 2000) {
           last_update = HAL_GetTick();
 
           // 1. Obtener copia de los datos crudos del ADC
