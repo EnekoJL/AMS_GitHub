@@ -118,9 +118,18 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  static uint32_t last_tick = 0;
 
   while (1)
   {
+      if (HAL_GetTick() - last_tick >= 2000u) {
+          last_tick = HAL_GetTick();
+
+          /* ------ Código de test cada 2s ------ */
+          // TODO LO QUE PONGAS AQUÍ SE EJECUTARÁ CADA 2s
+          /* ------------------------------------ */
+      }
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
