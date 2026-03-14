@@ -13,7 +13,7 @@
  * ORANGE (LED2) -> PD4
  * RED    (LED3) -> PD5
  * BLUE   (LED4) -> PK3
- * Configuración -> PUSH-PULL (Activo ALTO / SET = ON)
+ * Configuración -> PUSH-PULL (Activo BAJO / RESET = ON)
  */
 
 void vd_LED_Driver_Init(void) {
@@ -35,28 +35,28 @@ void vd_LED_Driver_ToggleAll(void) {
 }
 
 void vd_LED_Driver_SetGreen(bool state) {
-    HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, state ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, state ? GPIO_PIN_RESET : GPIO_PIN_SET);
 }
 void vd_LED_Driver_ToggleGreen(void) {
     HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
 }
 
 void vd_LED_Driver_SetOrange(bool state) {
-    HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, state ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, state ? GPIO_PIN_RESET : GPIO_PIN_SET);
 }
 void vd_LED_Driver_ToggleOrange(void) {
     HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
 }
 
 void vd_LED_Driver_SetRed(bool state) {
-    HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, state ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, state ? GPIO_PIN_RESET : GPIO_PIN_SET);
 }
 void vd_LED_Driver_ToggleRed(void) {
     HAL_GPIO_TogglePin(LED3_GPIO_Port, LED3_Pin);
 }
 
 void vd_LED_Driver_SetBlue(bool state) {
-    HAL_GPIO_WritePin(LED4_GPIO_Port, LED4_Pin, state ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(LED4_GPIO_Port, LED4_Pin, state ? GPIO_PIN_RESET : GPIO_PIN_SET);
 }
 void vd_LED_Driver_ToggleBlue(void) {
     HAL_GPIO_TogglePin(LED4_GPIO_Port, LED4_Pin);

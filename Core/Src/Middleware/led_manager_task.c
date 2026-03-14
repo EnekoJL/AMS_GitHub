@@ -26,7 +26,7 @@ void vd_LED_Manager_Process(void) {
     if (current_mode != s_last_known_mode) {
         vd_LED_Driver_SetAll(false); // Apagamos todo por seguridad al cambiar de estado
         s_last_known_mode = current_mode;
-        
+
         // Efectos inmediatos (los que no parpadean)
         switch (current_mode) {
             case LED_MODE_ALL_OFF:   vd_LED_Driver_SetAll(false);  break;

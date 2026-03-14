@@ -81,6 +81,56 @@ static void MX_SDIO_SD_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+/* -----------------------------------------------------------------------
+ * Helpers de Debug (Funciones estáticas privadas del main)
+ * ----------------------------------------------------------------------- */
+
+/**
+ * @brief Imprime los datos crudos del ADC y los valores calculados por el algoritmo.
+ */
+static void vd_Debug_PrintADCData(void) {
+    AMS_ADC_Data_t  adc;
+    Vehicle_Data_t  veh;
+    b_Broker_Get_ADCData(&adc);
+    b_Broker_Get_VehicleState(&veh);
+
+    printf("\r\n--- ADC RAW -------------------------------------------------\r\n");
+    printf("  ADC1 (Bat 12V):  raw=%4u  ->  %4lu mV\r\n", adc.adc1_filtrado,     adc.voltaje_adc1_mV);
+    printf("  ADC2 CH1 (Sus1): raw=%4u  ->  %4lu mV\r\n", adc.adc2_ch1_filtrado, adc.voltaje_adc2_ch1_mV);
+    printf("  ADC2 CH2 (Sus2): raw=%4u  ->  %4lu mV\r\n", adc.adc2_ch2_filtrado, adc.voltaje_adc2_ch2_mV);
+    printf("--- CALCULADO -----------------------------------------------\r\n");
+    printf("  Bateria 12V:  %lu.%02lu V\r\n",
+           veh.bateria_12v_mV / 1000, (veh.bateria_12v_mV % 1000) / 10);
+    printf("  Suspension 1: %lu.%01lu mm\r\n",
+           veh.recorrido_susp_1_dmm / 10, veh.recorrido_susp_1_dmm % 10);
+    printf("  Suspension 2: %lu.%01lu mm\r\n",
+           veh.recorrido_susp_2_dmm / 10, veh.recorrido_susp_2_dmm % 10);
+    printf("------------------------------------------------------------\r\n");
+}
+
+/**
+ * @brief Imprime el estado actual del SOC del DataBroker.
+ */
+static void vd_Debug_PrintSOC(void) {
+    AMS_Persistent_Config_t cfg;
+    b_Broker_Get_PersistentConfig(&cfg);
+    printf("\r\n--- PERSISTENCIA -------------------------------------------\r\n");
+    printf("  SOC:    %u.%u %%\r\n", cfg.soc_percent_x10 / 10, cfg.soc_percent_x10 % 10);
+    printf("  Ciclos: %u\r\n", cfg.cycle_count);
+    printf("------------------------------------------------------------\r\n");
+}
+
+/**
+ * @brief Imprime confirmación de guardado en Flash.
+ */
+static void vd_Debug_PrintFlashSave(void) {
+    AMS_Persistent_Config_t cfg;
+    b_Broker_Get_PersistentConfig(&cfg);
+    printf("\r\n[FLASH] SOC GUARDADO: %u.%u %% (Slot: %lu)\r\n",
+           cfg.soc_percent_x10 / 10, cfg.soc_percent_x10 % 10,
+           u32_Persist_GetLastSlotIndex());
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -125,15 +175,14 @@ int main(void)
   Broker_Init();
 
   vd_AMS_ADC_Init(&hadc1, &hadc2, &htim2, &htim3);
-  vd_Logger_Init();
+  //vd_Logger_Init();
   vd_LED_Manager_Init();
+  //vd_Persist_Init();
 
-  /* [PERSISTENCIA] Descomentar la siguiente línea para activar la carga de datos desde Flash: */
-  vd_Persist_Init();
   AMS_Persistent_Config_t init_cfg;
   b_Broker_Get_PersistentConfig(&init_cfg);
-  printf("\r\n[BOOT] SOC CARGADO desde Flash: %u.%u %% (Ciclos: %u)\r\n", 
-         init_cfg.soc_percent_x10 / 10, 
+  printf("\r\n[BOOT] SOC CARGADO desde Flash: %u.%u %% (Ciclos: %u)\r\n",
+         init_cfg.soc_percent_x10 / 10,
          init_cfg.soc_percent_x10 % 10,
          init_cfg.cycle_count);
 
@@ -144,18 +193,36 @@ int main(void)
   uint32_t last_update = 0;
   uint32_t last_sd_log = 0;
 
+  static uint8_t  ui8_led_step = 0;
+  static uint32_t ui32_led_time = 0;
+  static const AMS_LED_Mode_t LED_CYCLE[8] = {
+	LED_MODE_ALL_OFF,
+	LED_MODE_GREEN_ON,
+	LED_MODE_ALL_OFF,
+    LED_MODE_ORANGE_ON,
+	LED_MODE_ALL_OFF,
+    LED_MODE_RED_ON,
+	LED_MODE_ALL_OFF,
+    LED_MODE_BLUE_ON,
+  };
+
   while (1)
   {
       // Ejecutar la máquina de estados de los LEDs (No bloqueante)
       vd_LED_Manager_Process();
 
+      if (HAL_GetTick() - ui32_led_time >= 1000u) {
+          ui32_led_time = HAL_GetTick();
+          vd_Broker_Set_LEDMode(LED_CYCLE[ui8_led_step]);
+          ui8_led_step = (ui8_led_step + 1u) % 8u;
+      }
+
       if (HAL_GetTick() - last_update >= 2000) {
           last_update = HAL_GetTick();
 
-          // 1. Obtener copia de los datos crudos del ADC
+          // 1. Actualizar datos ADC y vehículo
           AMS_ADC_Data_t local_adc;
           b_Broker_Get_ADCData(&local_adc);
-
           Algorithms_Sensors_ProcessVoltages(&local_adc);
 
           Vehicle_Data_t local_veh;
@@ -165,68 +232,41 @@ int main(void)
           b_Broker_Update_ADCData(&local_adc);
           b_Broker_Update_VehicleState(&local_veh);
 
-          // ====================================================
-          // DEBUG: Raw ADC vs Algoritmo
-          // ====================================================
-          /*
-          printf("\r\n--- ADC RAW -------------------------------------------------\r\n");
-          printf("  ADC1 (Bat 12V):  raw=%4u  ->  %4lu mV (en pin)\r\n",
-                 local_adc.adc1_filtrado,
-                 local_adc.voltaje_adc1_mV);
-          printf("  ADC2 CH1 (Sus1): raw=%4u  ->  %4lu mV (en pin)\r\n",
-                 local_adc.adc2_ch1_filtrado,
-                 local_adc.voltaje_adc2_ch1_mV);
-          printf("  ADC2 CH2 (Sus2): raw=%4u  ->  %4lu mV (en pin)\r\n",
-                 local_adc.adc2_ch2_filtrado,
-                 local_adc.voltaje_adc2_ch2_mV);
-          printf("--- CALCULADO -----------------------------------------------\r\n");
-          printf("  Bateria 12V:  %lu.%02lu V\r\n",
-                 local_veh.bateria_12v_mV / 1000,
-                 (local_veh.bateria_12v_mV % 1000) / 10);
-          printf("  Suspension 1: %lu.%01lu mm\r\n",
-                 local_veh.recorrido_susp_1_dmm / 10,
-                 local_veh.recorrido_susp_1_dmm % 10);
-          printf("  Suspension 2: %lu.%01lu mm\r\n",
-                 local_veh.recorrido_susp_2_dmm / 10,
-                 local_veh.recorrido_susp_2_dmm % 10);
-          printf("------------------------------------------------------------\r\n");
-          */
+          // vd_Debug_PrintADCData();
 
+          // 3. Simular bajada de SOC (0.1% cada 2s)
+          /*
           AMS_Persistent_Config_t persist_cfg;
           b_Broker_Get_PersistentConfig(&persist_cfg);
-          
-          if (persist_cfg.soc_percent_x10 > 0) {
-              persist_cfg.soc_percent_x10 -= 1; // Baja 0.1%
-          } else {
-              persist_cfg.soc_percent_x10 = 1000;
-          }
+          persist_cfg.soc_percent_x10 = (persist_cfg.soc_percent_x10 > 0)
+                                        ? persist_cfg.soc_percent_x10 - 1
+                                        : 1000u;
           vd_Broker_Set_PersistentConfig(&persist_cfg);
-
-          printf("\r\n--- SOC SIMULATOR ------------------------------------------\r\n");
-          printf("  SOC Actual: %u.%u %%\r\n", persist_cfg.soc_percent_x10 / 10, persist_cfg.soc_percent_x10 % 10);
-          printf("  Ciclos:     %u\r\n", persist_cfg.cycle_count);
-          printf("------------------------------------------------------------\r\n");
+		  */
+          // 4. Imprimir estado SOC
+          //vd_Debug_PrintSOC();
       }
 
       if (HAL_GetTick() - last_sd_log >= 500) {
           last_sd_log = HAL_GetTick();
 
-          vd_Logger_Process();
+          //vd_Logger_Process();
       }
 
-      /* [PERSISTENCIA] Descomentar el bloque siguiente para guardar en Flash cada 10s: */
+      /* [PERSISTENCIA] Descomentar el bloque siguiente para guardar en Flash cada 10s:
       static uint32_t last_persist_save = 0;
       if (HAL_GetTick() - last_persist_save >= 10000) {
           last_persist_save = HAL_GetTick();
           if(b_Persist_SaveConfig()) {
               AMS_Persistent_Config_t saved_cfg;
               b_Broker_Get_PersistentConfig(&saved_cfg);
-              printf("\r\n[FLASH] SOC GUARDADO en Flash: %u.%u %% (Slot: %lu)\r\n", 
-                     saved_cfg.soc_percent_x10 / 10, 
+              printf("\r\n[FLASH] SOC GUARDADO en Flash: %u.%u %% (Slot: %lu)\r\n",
+                     saved_cfg.soc_percent_x10 / 10,
                      saved_cfg.soc_percent_x10 % 10,
                      u32_Persist_GetLastSlotIndex());
           }
       }
+      */
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
