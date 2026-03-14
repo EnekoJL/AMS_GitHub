@@ -156,7 +156,8 @@ void vd_Persist_Init(void) {
 
     // Cargar datos al DataBroker
     if (found_any) {
-        vd_Broker_Set_PersistentConfig(&best_record.config);
+        AMS_Persistent_Config_t temp_cfg = best_record.config;
+        vd_Broker_Set_PersistentConfig(&temp_cfg);
     } else {
         // Valores por defecto si la flash está vacía
         AMS_Persistent_Config_t defaults = {

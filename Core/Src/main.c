@@ -129,7 +129,13 @@ int main(void)
   vd_LED_Manager_Init();
 
   /* [PERSISTENCIA] Descomentar la siguiente línea para activar la carga de datos desde Flash: */
-  // vd_Persist_Init();
+  vd_Persist_Init();
+  AMS_Persistent_Config_t init_cfg;
+  b_Broker_Get_PersistentConfig(&init_cfg);
+  printf("\r\n[BOOT] SOC CARGADO desde Flash: %u.%u %% (Ciclos: %u)\r\n", 
+         init_cfg.soc_percent_x10 / 10, 
+         init_cfg.soc_percent_x10 % 10,
+         init_cfg.cycle_count);
 
   /* USER CODE END 2 */
 
@@ -162,6 +168,7 @@ int main(void)
           // ====================================================
           // DEBUG: Raw ADC vs Algoritmo
           // ====================================================
+          /*
           printf("\r\n--- ADC RAW -------------------------------------------------\r\n");
           printf("  ADC1 (Bat 12V):  raw=%4u  ->  %4lu mV (en pin)\r\n",
                  local_adc.adc1_filtrado,
@@ -183,6 +190,22 @@ int main(void)
                  local_veh.recorrido_susp_2_dmm / 10,
                  local_veh.recorrido_susp_2_dmm % 10);
           printf("------------------------------------------------------------\r\n");
+          */
+
+          AMS_Persistent_Config_t persist_cfg;
+          b_Broker_Get_PersistentConfig(&persist_cfg);
+          
+          if (persist_cfg.soc_percent_x10 > 0) {
+              persist_cfg.soc_percent_x10 -= 1; // Baja 0.1%
+          } else {
+              persist_cfg.soc_percent_x10 = 1000;
+          }
+          vd_Broker_Set_PersistentConfig(&persist_cfg);
+
+          printf("\r\n--- SOC SIMULATOR ------------------------------------------\r\n");
+          printf("  SOC Actual: %u.%u %%\r\n", persist_cfg.soc_percent_x10 / 10, persist_cfg.soc_percent_x10 % 10);
+          printf("  Ciclos:     %u\r\n", persist_cfg.cycle_count);
+          printf("------------------------------------------------------------\r\n");
       }
 
       if (HAL_GetTick() - last_sd_log >= 500) {
@@ -191,13 +214,19 @@ int main(void)
           vd_Logger_Process();
       }
 
-      /* [PERSISTENCIA] Descomentar el bloque siguiente para guardar en Flash cada 10s:
+      /* [PERSISTENCIA] Descomentar el bloque siguiente para guardar en Flash cada 10s: */
       static uint32_t last_persist_save = 0;
       if (HAL_GetTick() - last_persist_save >= 10000) {
           last_persist_save = HAL_GetTick();
-          b_Persist_SaveConfig();
+          if(b_Persist_SaveConfig()) {
+              AMS_Persistent_Config_t saved_cfg;
+              b_Broker_Get_PersistentConfig(&saved_cfg);
+              printf("\r\n[FLASH] SOC GUARDADO en Flash: %u.%u %% (Slot: %lu)\r\n", 
+                     saved_cfg.soc_percent_x10 / 10, 
+                     saved_cfg.soc_percent_x10 % 10,
+                     u32_Persist_GetLastSlotIndex());
+          }
       }
-      */
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
