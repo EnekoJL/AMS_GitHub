@@ -28,7 +28,6 @@
 #include "Middleware/logger_task.h"
 #include "Middleware/led_manager_task.h"
 #include "Middleware/DataBroker.h"
-/* [PERSISTENCIA] Descomentar para activar la persistencia en Flash: */
 #include "Middleware/AMS_persistence_manager.h"
 /* USER CODE END Includes */
 
@@ -53,6 +52,8 @@ ADC_HandleTypeDef hadc2;
 DMA_HandleTypeDef hdma_adc1;
 DMA_HandleTypeDef hdma_adc2;
 
+CAN_HandleTypeDef hcan2;
+
 SD_HandleTypeDef hsd;
 
 TIM_HandleTypeDef htim2;
@@ -74,6 +75,7 @@ static void MX_ADC2_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_SDIO_SD_Init(void);
+static void MX_CAN2_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -170,6 +172,7 @@ int main(void)
   MX_TIM2_Init();
   MX_SDIO_SD_Init();
   MX_FATFS_Init();
+  MX_CAN2_Init();
   /* USER CODE BEGIN 2 */
 
   Broker_Init();
@@ -291,12 +294,11 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 8;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 4;
   RCC_OscInitStruct.PLL.PLLN = 180;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 8;
@@ -438,6 +440,43 @@ static void MX_ADC2_Init(void)
   /* USER CODE BEGIN ADC2_Init 2 */
 
   /* USER CODE END ADC2_Init 2 */
+
+}
+
+/**
+  * @brief CAN2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_CAN2_Init(void)
+{
+
+  /* USER CODE BEGIN CAN2_Init 0 */
+
+  /* USER CODE END CAN2_Init 0 */
+
+  /* USER CODE BEGIN CAN2_Init 1 */
+
+  /* USER CODE END CAN2_Init 1 */
+  hcan2.Instance = CAN2;
+  hcan2.Init.Prescaler = 5;
+  hcan2.Init.Mode = CAN_MODE_NORMAL;
+  hcan2.Init.SyncJumpWidth = CAN_SJW_1TQ;
+  hcan2.Init.TimeSeg1 = CAN_BS1_15TQ;
+  hcan2.Init.TimeSeg2 = CAN_BS2_2TQ;
+  hcan2.Init.TimeTriggeredMode = DISABLE;
+  hcan2.Init.AutoBusOff = DISABLE;
+  hcan2.Init.AutoWakeUp = DISABLE;
+  hcan2.Init.AutoRetransmission = DISABLE;
+  hcan2.Init.ReceiveFifoLocked = DISABLE;
+  hcan2.Init.TransmitFifoPriority = DISABLE;
+  if (HAL_CAN_Init(&hcan2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN CAN2_Init 2 */
+
+  /* USER CODE END CAN2_Init 2 */
 
 }
 
