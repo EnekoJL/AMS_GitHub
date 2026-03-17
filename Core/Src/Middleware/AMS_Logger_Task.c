@@ -26,7 +26,7 @@ void vd_Logger_Init(void) {
             /* 3. Abrimos el archivo una única vez y lo mantenemos abierto */
             if (b_SD_Card_OpenLogFile(s_current_log_file)) {
                 /* 4. Escribimos la cabecera (Header) del CSV y sincronizamos */
-                const char* s_csv_header = "TICK_MS,BAT_12V_MV,SUSP1_DMM,SUSP2_DMM\n";
+                const char* s_csv_header = "TICK_MS,BAT_12V_MV,SUSP1_DMM,SUSP2_DMM,RPM\n";
                 if (b_SD_Card_WriteSync(s_csv_header)) {
                     b_logger_ready = true;
                     printf("\r\n[LOGGER] Sistema SD listo. Guardando y sincronizando en: %s\r\n", s_current_log_file);
@@ -55,11 +55,12 @@ void vd_Logger_TaskProcess(void) {
             if (b_Broker_Get_VehicleState(&local_veh)) {
                 
                 /* 2. Formateamos a CSV */
-                snprintf(s_buffer, sizeof(s_buffer), "%lu,%lu,%lu,%lu\n",
+                snprintf(s_buffer, sizeof(s_buffer), "%lu,%lu,%lu,%lu,%d\n",
                          HAL_GetTick(),
                          local_veh.bateria_12v_mV,
                          local_veh.recorrido_susp_1_dmm,
-                         local_veh.recorrido_susp_2_dmm);
+                         local_veh.recorrido_susp_2_dmm,
+                         local_veh.inverter_rpm);
                          
                 /* 3. Guardamos y hacemos Sync de los datos en la tarjeta */
                 if(b_SD_Card_WriteSync(s_buffer)) {
