@@ -1,5 +1,5 @@
 /**
- * @file    adc_AMS.c
+ * @file    AMS_adc_driver.c
  * @brief   Implementación del gestor de ADCs.
  * @author  Eneko Juanena
  * @date    6 de Marzo de 2026
@@ -7,7 +7,7 @@
 
 #include "Drivers_Custom/AMS_adc_driver.h"
 #include <stddef.h> 
-#include "Middleware/DataBroker.h" 
+#include "Middleware/AMS_DataBroker.h" 
 
 /* ================= VARIABLES PRIVADAS (STATIC) ====================== */
 static ADC_HandleTypeDef *p_hadc1 = NULL;

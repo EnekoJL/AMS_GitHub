@@ -5,8 +5,8 @@
  * @date    6 de Marzo de 2026
  */
 
-#ifndef DATABROKER_H_
-#define DATABROKER_H_
+#ifndef AMS_DATABROKER_H_
+#define AMS_DATABROKER_H_
 
 #include "AMS_DataTypes.h"
 #include <stdbool.h>
@@ -63,4 +63,4 @@ void vd_Broker_Set_PersistentConfig(const AMS_Persistent_Config_t *p_config);
  */
 bool b_Broker_Get_PersistentConfig(AMS_Persistent_Config_t *p_out);
 
-#endif /* DATABROKER_H_ */
+#endif /* AMS_DATABROKER_H_ */

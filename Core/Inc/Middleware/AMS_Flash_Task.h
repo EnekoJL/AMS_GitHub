@@ -6,8 +6,8 @@
  * @author  Eneko Juanena
  * @date    11 de Marzo de 2026
  */
-#ifndef AMS_PERSISTENCE_MANAGER_H_
-#define AMS_PERSISTENCE_MANAGER_H_
+#ifndef AMS_FLASH_TASK_H_
+#define AMS_FLASH_TASK_H_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -39,4 +39,4 @@ bool b_Persist_SaveConfig(void);
  */
 uint32_t u32_Persist_GetLastSlotIndex(void);
 
-#endif /* AMS_PERSISTENCE_MANAGER_H_ */
+#endif /* AMS_FLASH_TASK_H_ */

@@ -1,5 +1,5 @@
 /**
- * @file    led_manager_task.h
+ * @file    AMS_Led_Task.h
  * @brief   LED Manager - independent per-LED control (ON / TOGGLE / BLINK).
  * @date    17 de Marzo de 2026
  *
@@ -12,8 +12,8 @@
  *   vd_LED_Manager_SetMode(LED_COLOR_RED,   LED_PIN_TOGGLE);  // toggles 500 ms
  *   vd_LED_Manager_SetMode(LED_COLOR_BLUE,  LED_PIN_OFF);     // stop blue
  */
-#ifndef LED_MANAGER_TASK_H_
-#define LED_MANAGER_TASK_H_
+#ifndef AMS_LED_TASK_H_
+#define AMS_LED_TASK_H_
 
 #include "AMS_DataTypes.h"
 
@@ -26,4 +26,4 @@ void vd_LED_Manager_SetMode(AMS_LED_Color_t color, AMS_LED_PinMode_t mode);
 /** Drive the LED state machine. Must be called every iteration of the main loop. */
 void vd_LED_Manager_Process(void);
 
-#endif /* LED_MANAGER_TASK_H_ */
+#endif /* AMS_LED_TASK_H_ */

@@ -1,5 +1,5 @@
 /**
- * @file    AMS_persistence_manager.c
+ * @file    AMS_Flash_Task.c
  * @brief   Implementación del Gestor de Persistencia (Middleware).
  *
  *  ESTRATEGIA DE BUFFER CIRCULAR "PING-PONG":
@@ -21,8 +21,8 @@
  * @date    11 de Marzo de 2026
  */
 
-#include "Middleware/AMS_persistence_manager.h"
-#include "Middleware/DataBroker.h"
+#include "Middleware/AMS_Flash_Task.h"
+#include "Middleware/AMS_DataBroker.h"
 #include "Drivers_Custom/AMS_flash_driver.h"
 #include <string.h>
 

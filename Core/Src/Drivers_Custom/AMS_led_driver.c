@@ -1,5 +1,5 @@
 /**
- * @file    led_driver.c
+ * @file    AMS_led_driver.c
  * @brief   Implementación del Driver Físico para LEDs
  * @date    11 de Marzo de 2026
  */

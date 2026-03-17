@@ -1,12 +1,12 @@
 /**
- * @file    DataBroker.c
+ * @file    AMS_DataBroker.c
  * @brief   Implementación del Gestor centralizado de datos del vehículo.
  *          Encapsula el estado global interactuando a través de copias seguras.
  * @author  Eneko Juanena
  * @date    6 de Marzo de 2026
  */
 
-#include "Middleware/DataBroker.h"
+#include "Middleware/AMS_DataBroker.h"
 #include <string.h>   // Para memcpy
 #include <stddef.h>   // Para NULL
 
@@ -24,7 +24,7 @@ static bool b_is_initialized = false;
 
 /* ================= IMPLEMENTACIÓN DE FUNCIONES ====================== */
 
-void Broker_Init(void) {
+void b_Broker_Init(void) {
     // Aquí se inicializarán los Mutex estáticos de FreeRTOS en el futuro.
     // Ejemplo: s_mutex_vehiculo = xSemaphoreCreateMutexStatic(&xMutexBufferVehiculo);
     
