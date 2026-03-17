@@ -227,17 +227,17 @@ int main(void)
 
   while (1)
   {
-      // Run LED state machine (non-blocking)
+      // Procesamos manager de LED para saber si hay que encender alguno más
       vd_LED_Manager_Process();
 
-      // --- CAN TX: Boton Azul (polling, no IT) ---
+      // --- CAN TX: Boton Azul (polling, no IT) Añadimos el mensaje al buzón para que se envíe cuando se pueda, sin interrupción ---
       if (HAL_GPIO_ReadPin(Boton_Azul_GPIO_Port, Boton_Azul_Pin) == GPIO_PIN_SET) {
           if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan2) > 0) {
               HAL_CAN_AddTxMessage(&hcan2, &TxHeader, TxData, &TxMailbox);
               vd_LED_Manager_SetMode(LED_COLOR_BLUE, LED_PIN_BLINK); /* Blue 200 ms flash on TX */
               printf("[CAN TX] StdId=0x%03lX sent via Boton_Azul\r\n", TxHeader.StdId);
           }
-          // Wait for button release to avoid repeated sends
+          // Quitamos rebotes modo simple
           while (HAL_GPIO_ReadPin(Boton_Azul_GPIO_Port, Boton_Azul_Pin) == GPIO_PIN_SET) {
               HAL_Delay(10);
           }
@@ -258,6 +258,8 @@ int main(void)
 
           b_Broker_Update_ADCData(&local_adc);
           b_Broker_Update_VehicleState(&local_veh);
+
+          vd_LED_Manager_SetMode(LED_COLOR_ORANGE, LED_PIN_BLINK);
 
           // vd_Debug_PrintADCData();
 
