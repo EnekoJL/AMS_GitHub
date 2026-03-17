@@ -25,6 +25,7 @@
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
 #include "Drivers_Custom/AMS_adc_driver.h"
+#include "Drivers_Custom/AMS_can_driver.h"
 #include "Algorithms/AMS_sensors.h"
 #include "Middleware/AMS_Logger_Task.h"
 #include "Middleware/AMS_Led_Task.h"
@@ -99,15 +100,8 @@ const osThreadAttr_t Task_Flash_Memo_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
-/* USER CODE BEGIN PV */
 /* Global variables have been moved to DataBroker.c */
-
-/* -----------------------------------------------------------------------
- * CAN2 - Tx variables (global so they are accessible from main loop)
- * ----------------------------------------------------------------------- */
-CAN_TxHeaderTypeDef TxHeader;
-uint8_t TxData[8];
-uint32_t TxMailbox;
+/* CAN2 variables now encapsulated in AMS_can_driver.c */
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -241,26 +235,11 @@ int main(void)
 	vd_CAN_RxQueue_Init();                         //ESTO ES PARA LA QUEUE DE MENSAJES CAN RX
 	vd_LED_Manager_Init();                         //ESTO ES PARA LA GESTIÓN DE LEDS
 
-	/* --- CAN2 startup --- */
-	if (HAL_CAN_Start(&hcan2) != HAL_OK) {
+	/* --- CAN2 startup via driver --- */
+	vd_AMS_CAN_Init(&hcan2);
+	b_AMS_CAN_ConfigureFilter(0x181, 0x181, 14); // Inverter Status
+	if (b_AMS_CAN_Start() != HAL_OK) {
 		Error_Handler();
-	}
-	/* Enable RX FIFO0 (RX0) interrupt - callback: HAL_CAN_RxFifo0MsgPendingCallback */
-	if (HAL_CAN_ActivateNotification(&hcan2, CAN_IT_RX_FIFO0_MSG_PENDING)
-			!= HAL_OK) {
-		Error_Handler();
-	}
-
-	/* --- CAN2 Tx frame template for Boton_Azul --- */
-	TxHeader.DLC = 8;
-	TxHeader.ExtId = 0;
-	TxHeader.IDE = CAN_ID_STD;
-	TxHeader.RTR = CAN_RTR_DATA;
-	TxHeader.StdId = 0x201; /* <<< adjust to your inverter command ID */
-	TxHeader.TransmitGlobalTime = DISABLE;
-	TxData[0] = 0x0C;
-	for (int i = 1; i < 8; i++) {
-		TxData[i] = 0x00;
 	}
 
 	/* --- Boot diagnostics --- */

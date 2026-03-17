@@ -16,7 +16,7 @@
  * @brief  Inicializa los Mutex / mecanismos de bloqueo del DataBroker.
  *         (Actualmente sin FreeRTOS, prepara las estructuras).
  */
-void Broker_Init(void);
+void b_Broker_Init(void);
 
 /* --- Getters (Lectura Segura) --- */
 /**

@@ -11,6 +11,7 @@
 #include "Middleware/AMS_CAN_Task.h"
 #include "Middleware/AMS_DataBroker.h"
 #include "Middleware/AMS_Led_Task.h"
+#include "Drivers_Custom/AMS_can_driver.h"
 #include "cmsis_os.h"
 #include <stdio.h>
 
@@ -34,12 +35,6 @@ typedef struct {
 
 /* Queue de FreeRTOS con capacidad para 8 paquetes sin riesgo de pérdida */
 static osMessageQueueId_t s_can_rx_queue = NULL;
-
-/* Handles CAN2 heredados del main */
-extern CAN_HandleTypeDef  hcan2;
-extern CAN_TxHeaderTypeDef TxHeader;
-extern uint8_t             TxData[8];
-extern uint32_t            TxMailbox;
 
 /* --------------------------------------------------------------------------
  * IMPLEMENTACIÓN PÚBLICA
@@ -106,10 +101,12 @@ void vd_CAN_Manager_TaskProcess(void) {
 
         /* --- BLOQUE 2: TX bajo demanda (Boton Azul) --- */
         if (HAL_GPIO_ReadPin(Boton_Azul_GPIO_Port, Boton_Azul_Pin) == GPIO_PIN_SET) {
-            if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan2) > 0) {
-                HAL_CAN_AddTxMessage(&hcan2, &TxHeader, TxData, &TxMailbox);
-                vd_LED_Manager_SetMode(LED_COLOR_BLUE, LED_PIN_BLINK);
-                printf("[CAN TX] StdId=0x%03lX sent via Boton_Azul\r\n", TxHeader.StdId);
+            if (u32_AMS_CAN_GetTxFreeLevel() > 0) {
+                uint8_t tx_data[8] = {0x0C, 0, 0, 0, 0, 0, 0, 0};
+                if (b_AMS_CAN_Transmit(0x201, tx_data, 8) == HAL_OK) {
+                    vd_LED_Manager_SetMode(LED_COLOR_BLUE, LED_PIN_BLINK);
+                    printf("[CAN TX] StdId=0x201 sent via Boton_Azul\r\n");
+                }
             }
             /* Anti-rebote no bloqueante */
             while (HAL_GPIO_ReadPin(Boton_Azul_GPIO_Port, Boton_Azul_Pin) == GPIO_PIN_SET) {
