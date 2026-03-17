@@ -79,8 +79,6 @@ static void parse_inverter_status(const CAN_RxPacket_t *pkt) {
     veh.inverter_rpm = rpm;
     b_Broker_Update_VehicleState(&veh);
 
-    /* Debug + feedback visual LED verde */
-    vd_LED_Manager_SetMode(LED_COLOR_GREEN, LED_PIN_BLINK);
     printf("[CAN RX] 0x%03lX → RPM: %d\r\n", pkt->std_id, rpm);
 }
 
