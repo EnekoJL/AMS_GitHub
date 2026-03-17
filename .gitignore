@@ -9,6 +9,8 @@ Release/
 *.hex
 *.map
 *.su
+*.srec
+*.launch
 
 # Archivos de configuración locales del usuario (opcional)
 .metadata/
