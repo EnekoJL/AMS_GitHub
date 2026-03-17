@@ -213,15 +213,15 @@ int main(void) {
 	/* --- Application layer init --- */
 	b_Broker_Init();
 	vd_AMS_ADC_Init(&hadc1, &hadc2, &htim2, &htim3); //ESTO ES PARA LA LECTURA DE ADCs
-	vd_Logger_Init();                         //ESTO ES PARA GUARDAR DATOS EN SD
+	vd_Logger_Init();                                //ESTO ES PARA GUARDAR DATOS EN SD
 	//vd_Persist_Init();                             //ESTO ES PARA PERSISTIR EN MEMORIA VARIBALES, COMO EL SOC.
 
-	vd_CAN_RxQueue_Init();            //ESTO ES PARA LA QUEUE DE MENSAJES CAN RX
-	vd_LED_Manager_Init();                     //ESTO ES PARA LA GESTIÓN DE LEDS
+	vd_CAN_RxQueue_Init();                           //ESTO ES PARA LA QUEUE DE MENSAJES CAN RX
+	vd_LED_Manager_Init();                           //ESTO ES PARA LA GESTIÓN DE LEDS
 
 	/* --- CAN2 startup via driver --- */
 	vd_AMS_CAN_Init(&hcan2);
-	b_AMS_CAN_ConfigureFilter(0x181, 0x181, 14); // Inverter Status
+	b_AMS_CAN_ConfigureFilter(0x181, 0x181, 14);    // Inverter Status
 	if (b_AMS_CAN_Start() != HAL_OK) {
 		Error_Handler();
 	}
@@ -288,44 +288,8 @@ int main(void) {
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
-	uint32_t last_update = 0;
 
 	while (1) {
-		/* El super-loop bare metal ahora está vacío. 
-		 * Toda la lógica del firmware se ejecuta concurrentemente 
-		 * en las tareas de FreeRTOS controladas por osDelay() 
-		 */
-
-		if (HAL_GetTick() - last_update >= 2000) {
-			last_update = HAL_GetTick();
-
-			// 3. Simular bajada de SOC (0.1% cada 2s)
-			/*
-			 AMS_Persistent_Config_t persist_cfg;
-			 b_Broker_Get_PersistentConfig(&persist_cfg);
-			 persist_cfg.soc_percent_x10 = (persist_cfg.soc_percent_x10 > 0)
-			 ? persist_cfg.soc_percent_x10 - 1
-			 : 1000u;
-			 vd_Broker_Set_PersistentConfig(&persist_cfg);
-			 */
-			// 4. Imprimir estado SOC
-			//vd_Debug_PrintSOC();
-		}
-
-		/* [PERSISTENCIA] Descomentar el bloque siguiente para guardar en Flash cada 10s:
-		 static uint32_t last_persist_save = 0;
-		 if (HAL_GetTick() - last_persist_save >= 10000) {
-		 last_persist_save = HAL_GetTick();
-		 if(b_Persist_SaveConfig()) {
-		 AMS_Persistent_Config_t saved_cfg;
-		 b_Broker_Get_PersistentConfig(&saved_cfg);
-		 printf("\r\n[FLASH] SOC GUARDADO en Flash: %u.%u %% (Slot: %lu)\r\n",
-		 saved_cfg.soc_percent_x10 / 10,
-		 saved_cfg.soc_percent_x10 % 10,
-		 u32_Persist_GetLastSlotIndex());
-		 }
-		 }
-		 */
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
