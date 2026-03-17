@@ -1,63 +1,140 @@
 /**
  * @file    led_manager_task.c
- * @brief   Implementación del Gestor de LEDs (Máquina de estados)
- * @date    11 de Marzo de 2026
+ * @brief   LED Manager - independent per-LED state machine.
+ * @date    17 de Marzo de 2026
+ *
+ * Each LED has its own channel with its own mode, toggle timer and blink deadline.
+ * All LEDs run independently: blue can TOGGLE while green is ON, etc.
  */
 
 #include "Middleware/led_manager_task.h"
-#include "Middleware/DataBroker.h"
 #include "Drivers_Custom/AMS_led_driver.h"
-#include "main.h" // HAL_GetTick
+#include "AMS_DataTypes.h"
+#include "main.h"
 
-#define BLINK_DELAY_MS 500  // Velocidad de parpadeo por defecto (0.5 Hz)
+/* -----------------------------------------------------------------------
+ * Configuration
+ * ----------------------------------------------------------------------- */
+#define TOGGLE_PERIOD_ms  500u
 
-static uint32_t s_last_blink_time = 0;
-static AMS_LED_Mode_t s_last_known_mode = LED_MODE_ALL_OFF;
+/* -----------------------------------------------------------------------
+ * Per-LED channel state
+ * ----------------------------------------------------------------------- */
+typedef struct {
+    AMS_LED_PinMode_t mode;
+    uint32_t          toggle_tick;   /* last toggle timestamp for TOGGLE mode */
+    uint32_t          blink_end;     /* deadline tick for BLINK mode          */
+} LedChannel_t;
 
-void vd_LED_Manager_Init(void) {
-    vd_LED_Driver_Init();
-    s_last_blink_time = HAL_GetTick();
-    s_last_known_mode = LED_MODE_ALL_OFF;
+static LedChannel_t s_channels[LED_COLOR_COUNT];
+
+/* -----------------------------------------------------------------------
+ * Driver function tables indexed by AMS_LED_Color_t
+ * (avoids repetitive switch statements in the processing loop)
+ * ----------------------------------------------------------------------- */
+typedef void (*LedSetFn_t)(bool);
+typedef void (*LedToggleFn_t)(void);
+
+static const LedSetFn_t    led_set_fn[LED_COLOR_COUNT]    = {
+    [LED_COLOR_GREEN]  = vd_LED_Driver_SetGreen,
+    [LED_COLOR_RED]    = vd_LED_Driver_SetRed,
+    [LED_COLOR_BLUE]   = vd_LED_Driver_SetBlue,
+    [LED_COLOR_ORANGE] = vd_LED_Driver_SetOrange,
+};
+
+static const LedToggleFn_t led_toggle_fn[LED_COLOR_COUNT] = {
+    [LED_COLOR_GREEN]  = vd_LED_Driver_ToggleGreen,
+    [LED_COLOR_RED]    = vd_LED_Driver_ToggleRed,
+    [LED_COLOR_BLUE]   = vd_LED_Driver_ToggleBlue,
+    [LED_COLOR_ORANGE] = vd_LED_Driver_ToggleOrange,
+};
+
+static const uint32_t led_blink_duration_ms[LED_COLOR_COUNT] = {
+    [LED_COLOR_GREEN]  = LED_BLINK_DURATION_GREEN_ms,
+    [LED_COLOR_RED]    = LED_BLINK_DURATION_RED_ms,
+    [LED_COLOR_BLUE]   = LED_BLINK_DURATION_BLUE_ms,
+    [LED_COLOR_ORANGE] = LED_BLINK_DURATION_ORANGE_ms,
+};
+
+/* -----------------------------------------------------------------------
+ * Process one LED channel (called from vd_LED_Manager_Process for each color)
+ * ----------------------------------------------------------------------- */
+static void led_channel_process(AMS_LED_Color_t color)
+{
+    LedChannel_t *ch = &s_channels[color];
+
+    switch (ch->mode)
+    {
+        case LED_PIN_OFF:
+            /* Nothing to do — LED was turned off in SetMode */
+            break;
+
+        case LED_PIN_ON:
+            /* Nothing to do — LED was turned on in SetMode */
+            break;
+
+        case LED_PIN_TOGGLE:
+            if (HAL_GetTick() - ch->toggle_tick >= TOGGLE_PERIOD_ms) {
+                ch->toggle_tick = HAL_GetTick();
+                led_toggle_fn[color]();
+            }
+            break;
+
+        case LED_PIN_BLINK:
+            if (HAL_GetTick() >= ch->blink_end) {
+                /* Blink window expired: turn this LED off */
+                led_set_fn[color](false);
+                ch->mode = LED_PIN_OFF;
+            }
+            break;
+    }
 }
 
-void vd_LED_Manager_Process(void) {
-    AMS_LED_Mode_t current_mode = e_Broker_Get_LEDMode();
+/* -----------------------------------------------------------------------
+ * Public API
+ * ----------------------------------------------------------------------- */
+void vd_LED_Manager_Init(void)
+{
+    vd_LED_Driver_Init();
 
-    if (current_mode != s_last_known_mode) {
-        vd_LED_Driver_SetAll(false); // Apagamos todo por seguridad al cambiar de estado
-        s_last_known_mode = current_mode;
-
-        // Efectos inmediatos (los que no parpadean)
-        switch (current_mode) {
-            case LED_MODE_ALL_OFF:   vd_LED_Driver_SetAll(false);  break;
-            case LED_MODE_ALL_ON:    vd_LED_Driver_SetAll(true);   break;
-            case LED_MODE_GREEN_ON:  vd_LED_Driver_SetGreen(true); break;
-            case LED_MODE_RED_ON:    vd_LED_Driver_SetRed(true);   break;
-            case LED_MODE_BLUE_ON:   vd_LED_Driver_SetBlue(true);  break;
-            case LED_MODE_ORANGE_ON: vd_LED_Driver_SetOrange(true);break;
-            default: break; // Los modos BLINK se manejan en la rutina de abajo
-        }
+    for (int i = 0; i < LED_COLOR_COUNT; i++) {
+        s_channels[i].mode        = LED_PIN_OFF;
+        s_channels[i].toggle_tick = 0u;
+        s_channels[i].blink_end   = 0u;
     }
+}
 
-    // 2. Rutina de Parpadeo No Bloqueante (solo para modos BLINK)
-    bool is_blink_mode = (
-        current_mode == LED_MODE_ALL_BLINK   ||
-        current_mode == LED_MODE_GREEN_BLINK ||
-        current_mode == LED_MODE_RED_BLINK   ||
-        current_mode == LED_MODE_BLUE_BLINK  ||
-        current_mode == LED_MODE_ORANGE_BLINK
-    );
+void vd_LED_Manager_SetMode(AMS_LED_Color_t color, AMS_LED_PinMode_t mode)
+{
+    if (color >= LED_COLOR_COUNT) { return; }
 
-    if (is_blink_mode && (HAL_GetTick() - s_last_blink_time >= BLINK_DELAY_MS)) {
-        s_last_blink_time = HAL_GetTick();
+    LedChannel_t *ch = &s_channels[color];
+    ch->mode = mode;
 
-        switch (current_mode) {
-            case LED_MODE_ALL_BLINK:    vd_LED_Driver_ToggleAll();    break;
-            case LED_MODE_GREEN_BLINK:  vd_LED_Driver_ToggleGreen();  break;
-            case LED_MODE_RED_BLINK:    vd_LED_Driver_ToggleRed();    break;
-            case LED_MODE_BLUE_BLINK:   vd_LED_Driver_ToggleBlue();   break;
-            case LED_MODE_ORANGE_BLINK: vd_LED_Driver_ToggleOrange(); break;
-            default: break;
-        }
+    switch (mode)
+    {
+        case LED_PIN_OFF:
+            led_set_fn[color](false);
+            break;
+
+        case LED_PIN_ON:
+            led_set_fn[color](true);
+            break;
+
+        case LED_PIN_TOGGLE:
+            ch->toggle_tick = HAL_GetTick();  /* start timer fresh */
+            break;
+
+        case LED_PIN_BLINK:
+            led_set_fn[color](true);
+            ch->blink_end = HAL_GetTick() + led_blink_duration_ms[color];
+            break;
+    }
+}
+
+void vd_LED_Manager_Process(void)
+{
+    for (AMS_LED_Color_t color = 0; color < LED_COLOR_COUNT; color++) {
+        led_channel_process(color);
     }
 }

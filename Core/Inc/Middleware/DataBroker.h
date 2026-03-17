@@ -48,19 +48,6 @@ bool b_Broker_Update_VehicleState(const Vehicle_Data_t *p_new_data);
  */
 bool b_Broker_Update_ADCData(const AMS_ADC_Data_t *p_new_data);
 
-/* ----- Acceso a Estados del Sistema (LEDs) ----- */
-/**
- * @brief  Obtiene el modo actual de los LEDs del sistema.
- * @retval AMS_LED_Mode_t: El modo actual de los LEDs.
- */
-AMS_LED_Mode_t e_Broker_Get_LEDMode(void);
-
-/**
- * @brief  Establece un nuevo modo para los LEDs del sistema.
- * @param  e_new_mode: El nuevo modo a establecer para los LEDs.
- */
-void vd_Broker_Set_LEDMode(AMS_LED_Mode_t e_new_mode);
-
 /* ----- Acceso a Datos Persistentes (Flash) ----- */
 /**
  * @brief  Carga la configuración persistente en el DataBroker.

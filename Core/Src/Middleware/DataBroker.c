@@ -13,7 +13,6 @@
 /* ================= VARIABLES ESTATICAS (PRIVADAS) ====================== */
 static AMS_ADC_Data_t           s_adc_data          = {0};
 static Vehicle_Data_t           s_vehiculo_state    = {0};
-static AMS_LED_Mode_t           s_led_mode          = LED_MODE_ALL_OFF;
 static AMS_Persistent_Config_t  s_persistent_config = {0};
 
 /* [FUTURO FreeRTOS]: Aquí se declararán los Mutex estáticos.
@@ -99,22 +98,6 @@ bool b_Broker_Update_ADCData(const AMS_ADC_Data_t *p_new_data) {
     // [FUTURO FreeRTOS]: xSemaphoreGive(s_mutex_adc);
 
     return true;
-}
-
-/* ================= IMPLEMENTACION: ESTADOS DEL SISTEMA (LEDs) ========== */
-
-AMS_LED_Mode_t e_Broker_Get_LEDMode(void) {
-    // [FUTURO FreeRTOS]: xSemaphoreTake(s_mutex_leds, portMAX_DELAY);
-    AMS_LED_Mode_t current = s_led_mode;
-    // [FUTURO FreeRTOS]: xSemaphoreGive(s_mutex_leds);
-    return current;
-}
-
-void vd_Broker_Set_LEDMode(AMS_LED_Mode_t e_new_mode) {
-    if (!b_is_initialized) return;
-    // [FUTURO FreeRTOS]: xSemaphoreTake(s_mutex_leds, portMAX_DELAY);
-    s_led_mode = e_new_mode;
-    // [FUTURO FreeRTOS]: xSemaphoreGive(s_mutex_leds);
 }
 
 /* ================ IMPLEMENTACION: DATOS PERSISTENTES (FLASH) =========== */

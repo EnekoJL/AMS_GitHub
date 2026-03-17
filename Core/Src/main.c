@@ -63,6 +63,13 @@ UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 /* Global variables have been moved to DataBroker.c */
+
+/* -----------------------------------------------------------------------
+ * CAN2 - Tx variables (global so they are accessible from main loop)
+ * ----------------------------------------------------------------------- */
+CAN_TxHeaderTypeDef TxHeader;
+uint8_t             TxData[8];
+uint32_t            TxMailbox;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -84,7 +91,7 @@ static void MX_CAN2_Init(void);
 /* USER CODE BEGIN 0 */
 
 /* -----------------------------------------------------------------------
- * Helpers de Debug (Funciones estáticas privadas del main)
+ * Debug helpers (static private functions of main)
  * ----------------------------------------------------------------------- */
 
 /**
@@ -175,16 +182,38 @@ int main(void)
   MX_CAN2_Init();
   /* USER CODE BEGIN 2 */
 
+  /* --- Application layer init --- */
   Broker_Init();
-
   vd_AMS_ADC_Init(&hadc1, &hadc2, &htim2, &htim3);
   //vd_Logger_Init();
   vd_LED_Manager_Init();
   //vd_Persist_Init();
 
+  /* --- CAN2 startup --- */
+  if (HAL_CAN_Start(&hcan2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* Enable RX FIFO0 (RX0) interrupt - callback: HAL_CAN_RxFifo0MsgPendingCallback */
+  if (HAL_CAN_ActivateNotification(&hcan2, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* --- CAN2 Tx frame template for Boton_Azul --- */
+  TxHeader.DLC                = 8;
+  TxHeader.ExtId              = 0;
+  TxHeader.IDE                = CAN_ID_STD;
+  TxHeader.RTR                = CAN_RTR_DATA;
+  TxHeader.StdId              = 0x201;   /* <<< adjust to your inverter command ID */
+  TxHeader.TransmitGlobalTime = DISABLE;
+  TxData[0] = 0x0C;
+  for (int i = 1; i < 8; i++) { TxData[i] = 0x00; }
+
+  /* --- Boot diagnostics --- */
   AMS_Persistent_Config_t init_cfg;
   b_Broker_Get_PersistentConfig(&init_cfg);
-  printf("\r\n[BOOT] SOC CARGADO desde Flash: %u.%u %% (Ciclos: %u)\r\n",
+  printf("\r\n[BOOT] SOC loaded from Flash: %u.%u %% (cycles: %u)\r\n",
          init_cfg.soc_percent_x10 / 10,
          init_cfg.soc_percent_x10 % 10,
          init_cfg.cycle_count);
@@ -196,34 +225,29 @@ int main(void)
   uint32_t last_update = 0;
   uint32_t last_sd_log = 0;
 
-  static uint8_t  ui8_led_step = 0;
-  static uint32_t ui32_led_time = 0;
-  static const AMS_LED_Mode_t LED_CYCLE[8] = {
-	LED_MODE_ALL_OFF,
-	LED_MODE_GREEN_ON,
-	LED_MODE_ALL_OFF,
-    LED_MODE_ORANGE_ON,
-	LED_MODE_ALL_OFF,
-    LED_MODE_RED_ON,
-	LED_MODE_ALL_OFF,
-    LED_MODE_BLUE_ON,
-  };
-
   while (1)
   {
-      // Ejecutar la máquina de estados de los LEDs (No bloqueante)
+      // Run LED state machine (non-blocking)
       vd_LED_Manager_Process();
 
-      if (HAL_GetTick() - ui32_led_time >= 1000u) {
-          ui32_led_time = HAL_GetTick();
-          vd_Broker_Set_LEDMode(LED_CYCLE[ui8_led_step]);
-          ui8_led_step = (ui8_led_step + 1u) % 8u;
+      // --- CAN TX: Boton Azul (polling, no IT) ---
+      if (HAL_GPIO_ReadPin(Boton_Azul_GPIO_Port, Boton_Azul_Pin) == GPIO_PIN_SET) {
+          if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan2) > 0) {
+              HAL_CAN_AddTxMessage(&hcan2, &TxHeader, TxData, &TxMailbox);
+              vd_LED_Manager_SetMode(LED_COLOR_BLUE, LED_PIN_BLINK); /* Blue 200 ms flash on TX */
+              printf("[CAN TX] StdId=0x%03lX sent via Boton_Azul\r\n", TxHeader.StdId);
+          }
+          // Wait for button release to avoid repeated sends
+          while (HAL_GPIO_ReadPin(Boton_Azul_GPIO_Port, Boton_Azul_Pin) == GPIO_PIN_SET) {
+              HAL_Delay(10);
+          }
       }
+
 
       if (HAL_GetTick() - last_update >= 2000) {
           last_update = HAL_GetTick();
 
-          // 1. Actualizar datos ADC y vehículo
+          // 1. Update ADC and vehicle data
           AMS_ADC_Data_t local_adc;
           b_Broker_Get_ADCData(&local_adc);
           Algorithms_Sensors_ProcessVoltages(&local_adc);
@@ -475,7 +499,23 @@ static void MX_CAN2_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN CAN2_Init 2 */
+  CAN_FilterTypeDef canfilterconfig;
 
+  canfilterconfig.FilterActivation = CAN_FILTER_ENABLE;
+  canfilterconfig.FilterBank = 14; /* CAN2 filter banks typically start from 14 */
+  canfilterconfig.FilterFIFOAssignment = CAN_RX_FIFO0; /* Mapped to RX0 interrupt */
+  canfilterconfig.FilterIdHigh = 0x181 << 5;
+  canfilterconfig.FilterIdLow = 0x0000;
+  canfilterconfig.FilterMaskIdHigh = 0x181 << 5;
+  canfilterconfig.FilterMaskIdLow = 0x0000;
+  canfilterconfig.FilterMode = CAN_FILTERMODE_IDMASK;
+  canfilterconfig.FilterScale = CAN_FILTERSCALE_32BIT;
+  canfilterconfig.SlaveStartFilterBank = 14; 
+
+  if (HAL_CAN_ConfigFilter(&hcan2, &canfilterconfig) != HAL_OK)
+  {
+      Error_Handler();
+  }
   /* USER CODE END CAN2_Init 2 */
 
 }
@@ -924,6 +964,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(LCD_INT_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : Boton_Azul_Pin */
+  GPIO_InitStruct.Pin = Boton_Azul_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(Boton_Azul_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pin : DSI_TE_Pin */
   GPIO_InitStruct.Pin = DSI_TE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -946,10 +992,44 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-//ESTA FUNCIÓN ES PARA SACAR LOS PRINTF'S POR EL PUERTO SERIE 3 - USB ORDENADOR
+/* --- UART printf redirect (USB-UART3) --- */
 int __io_putchar(char ch) {
   HAL_UART_Transmit(&huart3, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
   return ch;
+}
+
+/* -----------------------------------------------------------------------
+ * CAN2 RX callback - FIFO0 (triggered by CAN2_RX0 interrupt)
+ *
+ * NOTE: On STM32F4 CAN1 and CAN2 share the same filter bank pool.
+ *       CAN2 is the slave, so CAN1 clock MUST also be enabled even if
+ *       only CAN2 is used (done automatically by HAL_CAN_MspInit).
+ *       Filter banks 14-27 are assigned to CAN2 (SlaveStartFilterBank=14).
+ *
+ * FIFO choice: filters are assigned to CAN_RX_FIFO0 -> CAN2_RX0_IRQn fires
+ *              -> this callback is invoked. CAN_RX_FIFO1 / CAN2_RX1_IRQn
+ *              is not used and stays disabled.
+ * ----------------------------------------------------------------------- */
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+{
+    if (hcan->Instance == CAN2)
+    {
+        CAN_RxHeaderTypeDef RxHeader;
+        uint8_t             RxData[8];
+
+        if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, RxData) == HAL_OK)
+        {
+            HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+
+            int rpm = ((RxData[1] << 8) | RxData[0]);
+
+            printf("%03lX>%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\r\n",
+                   RxHeader.StdId,
+                   RxData[0], RxData[1], RxData[2], RxData[3],
+                   RxData[4], RxData[5], RxData[6], RxData[7]);
+            printf("RPM:%04d\r\n", rpm);
+        }
+    }
 }
 
 /* USER CODE END 4 */

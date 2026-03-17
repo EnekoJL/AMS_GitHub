@@ -37,22 +37,39 @@ typedef struct {
     uint32_t recorrido_susp_2_dmm; // Recorrido en décimas de mm (ej. 485 -> 48.5 mm)
 } Vehicle_Data_t;
 
+/* --- LED one-shot blink durations (ms) --- */
+
+#define LED_BLINK_DURATION_GREEN_ms   200u
+#define LED_BLINK_DURATION_RED_ms     200u
+#define LED_BLINK_DURATION_BLUE_ms    200u
+#define LED_BLINK_DURATION_ORANGE_ms  200u
+
 /**
- * @brief Modos de parpadeo y estado visual para la placa
+ * @brief Which LED to control.
  */
 typedef enum {
-    LED_MODE_ALL_OFF = 0,
-    LED_MODE_ALL_ON,
-    LED_MODE_ALL_BLINK,
-    LED_MODE_GREEN_ON,
-    LED_MODE_GREEN_BLINK,
-    LED_MODE_RED_ON,
-    LED_MODE_RED_BLINK,
-    LED_MODE_BLUE_ON,
-    LED_MODE_BLUE_BLINK,
-    LED_MODE_ORANGE_ON,
-    LED_MODE_ORANGE_BLINK
-} AMS_LED_Mode_t;
+    LED_COLOR_GREEN  = 0,
+    LED_COLOR_RED    = 1,
+    LED_COLOR_BLUE   = 2,
+    LED_COLOR_ORANGE = 3,
+    LED_COLOR_COUNT  = 4
+} AMS_LED_Color_t;
+
+/**
+ * @brief What the LED should do.
+ *
+ *  OFF    – LED off.
+ *  ON     – LED permanently on.
+ *  TOGGLE – LED toggles continuously every 500 ms.
+ *  BLINK  – LED lights for LED_BLINK_DURATION_*_ms then turns off.
+ */
+typedef enum {
+    LED_PIN_OFF    = 0,
+    LED_PIN_ON     = 1,
+    LED_PIN_TOGGLE = 2,
+    LED_PIN_BLINK  = 3,
+} AMS_LED_PinMode_t;
+
 
 /* ================= VARIABLES (TYPEDEFS) ========================= */
 

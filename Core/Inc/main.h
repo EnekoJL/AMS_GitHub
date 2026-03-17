@@ -211,8 +211,8 @@ void Error_Handler(void);
 #define LCD_INT_GPIO_Port GPIOJ
 #define D20_Pin GPIO_PIN_12
 #define D20_GPIO_Port GPIOH
-#define WAKEUP_Pin GPIO_PIN_0
-#define WAKEUP_GPIO_Port GPIOA
+#define Boton_Azul_Pin GPIO_PIN_0
+#define Boton_Azul_GPIO_Port GPIOA
 #define A7_Pin GPIO_PIN_13
 #define A7_GPIO_Port GPIOF
 #define A10_Pin GPIO_PIN_0
