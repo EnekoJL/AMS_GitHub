@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -118,6 +118,30 @@ int main(void)
   MX_CAN2_Init();
   /* USER CODE BEGIN 2 */
 
+  /* --- Configurar filtro CAN2 (obligatorio en STM32F4) --- */
+  CAN_FilterTypeDef canFilterConfig;
+  canFilterConfig.FilterActivation  = CAN_FILTER_ENABLE;
+  canFilterConfig.FilterBank        = 14;              /* CAN2 usa banks 14-27 */
+  canFilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0;
+  canFilterConfig.FilterIdHigh      = 0x0000;
+  canFilterConfig.FilterIdLow       = 0x0000;
+  canFilterConfig.FilterMaskIdHigh  = 0x0000;          /* Acepta todo */
+  canFilterConfig.FilterMaskIdLow   = 0x0000;
+  canFilterConfig.FilterMode        = CAN_FILTERMODE_IDMASK;
+  canFilterConfig.FilterScale       = CAN_FILTERSCALE_32BIT;
+  canFilterConfig.SlaveStartFilterBank = 14;
+
+  if (HAL_CAN_ConfigFilter(&hcan2, &canFilterConfig) != HAL_OK) {
+      Error_Handler();
+  }
+
+  /* --- Arrancar CAN2 --- */
+  if (HAL_CAN_Start(&hcan2) != HAL_OK) {
+      Error_Handler();
+  }
+
+  printf("\r\n[BOOT] CAN2 arrancado a 500 kbit/s (PB13=TX, PB12=RX)\r\n");
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -129,9 +153,35 @@ int main(void)
       if (HAL_GetTick() - last_tick >= 2000u) {
           last_tick = HAL_GetTick();
 
-          /* ------ Código de test cada 2s ------ */
-          // TODO LO QUE PONGAS AQUÍ SE EJECUTARÁ CADA 2s
-          /* ------------------------------------ */
+          /* ------ Envío CAN de test cada 2s ------ */
+          CAN_TxHeaderTypeDef TxHeader;
+          uint8_t             TxData[8];
+          uint32_t            TxMailbox;
+
+          TxHeader.StdId              = 0x123;        /* ID estándar del mensaje */
+          TxHeader.ExtId              = 0;
+          TxHeader.IDE                = CAN_ID_STD;
+          TxHeader.RTR                = CAN_RTR_DATA;
+          TxHeader.DLC                = 8;            /* 8 bytes de datos */
+          TxHeader.TransmitGlobalTime = DISABLE;
+
+          /* Rellena payload de ejemplo (cámbialo por tus datos reales) */
+          TxData[0] = 0xAA;
+          TxData[1] = 0xBB;
+          TxData[2] = 0xCC;
+          TxData[3] = 0xDD;
+          TxData[4] = (uint8_t)((HAL_GetTick() >> 24) & 0xFF);
+          TxData[5] = (uint8_t)((HAL_GetTick() >> 16) & 0xFF);
+          TxData[6] = (uint8_t)((HAL_GetTick() >>  8) & 0xFF);
+          TxData[7] = (uint8_t)((HAL_GetTick()      ) & 0xFF);
+
+          if (HAL_CAN_AddTxMessage(&hcan2, &TxHeader, TxData, &TxMailbox) == HAL_OK) {
+              printf("[CAN TX] ID=0x123 OK  (mailbox %lu)\r\n", TxMailbox);
+              HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);  /* Feedback visual */
+          } else {
+              printf("[CAN TX] ERROR - no hay mailbox libre\r\n");
+          }
+          /* ---------------------------------------- */
       }
 
     /* USER CODE END WHILE */
