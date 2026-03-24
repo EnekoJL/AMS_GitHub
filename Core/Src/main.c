@@ -235,23 +235,7 @@ int main(void) {
 		// Procesamos manager de LED para saber si hay que encender alguno más
 		vd_LED_Manager_Process();
 
-		// --- CAN TX: Boton Azul (polling, no IT) Añadimos el mensaje al buzón para que se envíe cuando se pueda, sin interrupción ---
-		if (HAL_GPIO_ReadPin(Boton_Azul_GPIO_Port, Boton_Azul_Pin)
-				== GPIO_PIN_SET) {
-			if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan2) > 0) {
-				HAL_CAN_AddTxMessage(&hcan2, &TxHeader, TxData, &TxMailbox);
-				vd_LED_Manager_SetMode(LED_COLOR_BLUE, LED_PIN_BLINK); // Activamos parpadeo de led azul - Llamar a vd_LED_Manager_Process() para aplicarlo
-				printf("[CAN TX] StdId=0x%03lX sent via Boton_Azul\r\n",
-						TxHeader.StdId);
-			}
-			// Quitamos rebotes modo simple
-			while (HAL_GPIO_ReadPin(Boton_Azul_GPIO_Port, Boton_Azul_Pin)
-					== GPIO_PIN_SET) {
-				HAL_Delay(10);
-			}
-		}
-
-		if (HAL_GetTick() - last_update >= 2000) {
+		if (HAL_GetTick() - last_update >= 1000) {
 			last_update = HAL_GetTick();
 
 			// 1. Update ADC and vehicle data
@@ -267,6 +251,14 @@ int main(void) {
 			b_Broker_Update_VehicleState(&local_veh);
 
 			vd_LED_Manager_SetMode(LED_COLOR_ORANGE, LED_PIN_BLINK);
+			uint8_t MailBoxFreeLevel = HAL_CAN_GetTxMailboxesFreeLevel(&hcan2);
+			printf("Mailbox: %d\r\n", MailBoxFreeLevel);
+			if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan2) > 0) {
+					HAL_CAN_AddTxMessage(&hcan2, &TxHeader, TxData, &TxMailbox);
+					vd_LED_Manager_SetMode(LED_COLOR_BLUE, LED_PIN_BLINK); // Activamos parpadeo de led azul - Llamar a vd_LED_Manager_Process() para aplicarlo
+					printf("[CAN TX] StdId=0x%03lX sent\r\n",
+					TxHeader.StdId);
+			}
 
 			// vd_Debug_PrintADCData();
 
@@ -481,7 +473,7 @@ static void MX_CAN2_Init(void) {
 	/* USER CODE END CAN2_Init 1 */
 	hcan2.Instance = CAN2;
 	hcan2.Init.Prescaler = 5;
-	hcan2.Init.Mode = CAN_MODE_NORMAL;
+	hcan2.Init.Mode = CAN_MODE_LOOPBACK;
 	hcan2.Init.SyncJumpWidth = CAN_SJW_1TQ;
 	hcan2.Init.TimeSeg1 = CAN_BS1_15TQ;
 	hcan2.Init.TimeSeg2 = CAN_BS2_2TQ;
