@@ -5,22 +5,22 @@
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         <mxCell id="3xS9qFxud_83t_qm9Z2u-1" value="" style="sketch=0;outlineConnect=0;fillColor=#4012BF;strokeColor=#4012BF;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.iot_thing_plc;" parent="1" vertex="1">
-          <mxGeometry x="375" y="200" width="78" height="78" as="geometry" />
+          <mxGeometry x="370" y="180" width="88" height="88" as="geometry" />
         </mxCell>
         <mxCell id="b598kinYODlSE-Ekjeb2-1" value="" style="group" parent="1" vertex="1" connectable="0">
-          <mxGeometry x="214" y="950" width="400" height="370" as="geometry" />
+          <mxGeometry x="214" y="1080" width="400" height="560" as="geometry" />
         </mxCell>
         <mxCell id="3xS9qFxud_83t_qm9Z2u-2" value="" style="rounded=0;whiteSpace=wrap;html=1;" parent="b598kinYODlSE-Ekjeb2-1" vertex="1">
-          <mxGeometry width="400" height="370" as="geometry" />
+          <mxGeometry width="400" height="560" as="geometry" />
         </mxCell>
         <mxCell id="3xS9qFxud_83t_qm9Z2u-3" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="b598kinYODlSE-Ekjeb2-1" vertex="1">
-          <mxGeometry x="16" y="35" width="60" height="300" as="geometry" />
+          <mxGeometry x="16" y="52.972972972972975" width="60" height="454.05405405405406" as="geometry" />
         </mxCell>
         <mxCell id="3xS9qFxud_83t_qm9Z2u-5" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="b598kinYODlSE-Ekjeb2-1" vertex="1">
-          <mxGeometry x="326" y="35" width="60" height="300" as="geometry" />
+          <mxGeometry x="326" y="52.972972972972975" width="60" height="454.05405405405406" as="geometry" />
         </mxCell>
         <mxCell id="b598kinYODlSE-Ekjeb2-2" value="Pines STM32F4" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;" parent="1" vertex="1">
-          <mxGeometry x="150" y="260" width="680" height="640" as="geometry" />
+          <mxGeometry x="74" y="280" width="680" height="640" as="geometry" />
         </mxCell>
         <mxCell id="FDITPEBxmJdqm-UQe7Nh-1" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="b598kinYODlSE-Ekjeb2-2">
           <mxGeometry y="30" width="680" height="47" as="geometry" />
