@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
+#include "AMS_task_config.h"                   /* Compile-time task/feature flags */
 #include "Drivers_Custom/AMS_adc_driver.h"
 #include "Drivers_Custom/AMS_can_driver.h"
 #include "Algorithms/AMS_sensors.h"
@@ -212,9 +213,11 @@ int main(void) {
 
 	/* --- Application layer init --- */
 	b_Broker_Init();
-	vd_AMS_ADC_Init(&hadc1, &hadc2, &htim2, &htim3); //ESTO ES PARA LA LECTURA DE ADCs
-	vd_Logger_Init();                                //ESTO ES PARA GUARDAR DATOS EN SD
-	//vd_Persist_Init();                             //ESTO ES PARA PERSISTIR EN MEMORIA VARIBALES, COMO EL SOC.
+	vd_AMS_ADC_Init(&hadc1, &hadc2, &htim2, &htim3); /* ADC acquisition init        */
+	vd_Logger_Init();                                 /* SD Card logger init          */
+#if (TASK_FLASH_MEMO_ENABLE == 1)
+	vd_Persist_Init();                                /* Flash persistence init       */
+#endif
 
 	vd_CAN_RxQueue_Init();                           //ESTO ES PARA LA QUEUE DE MENSAJES CAN RX
 	vd_LED_Manager_Init();                           //ESTO ES PARA LA GESTIÓN DE LEDS
@@ -260,18 +263,26 @@ int main(void) {
 			&defaultTask_attributes);
 
 	/* creation of Task_ADC */
+#if (TASK_ADC_ENABLE == 1)
 	Task_ADCHandle = osThreadNew(ADC_Start, NULL, &Task_ADC_attributes);
+#endif
 
 	/* creation of Task_SD_Card */
+#if (TASK_SD_CARD_ENABLE == 1)
 	Task_SD_CardHandle = osThreadNew(SD_Card_Start, NULL,
 			&Task_SD_Card_attributes);
+#endif
 
 	/* creation of Task_CAN */
+#if (TASK_CAN_ENABLE == 1)
 	Task_CANHandle = osThreadNew(CAN_Start, NULL, &Task_CAN_attributes);
+#endif
 
 	/* creation of Task_Flash_Memo */
+#if (TASK_FLASH_MEMO_ENABLE == 1)
 	Task_Flash_MemoHandle = osThreadNew(Flash_Memory_Start, NULL,
 			&Task_Flash_Memo_attributes);
+#endif
 
 	/* USER CODE BEGIN RTOS_THREADS */
 	/* add threads, ... */

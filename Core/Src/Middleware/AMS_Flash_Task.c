@@ -24,6 +24,7 @@
 #include "Middleware/AMS_Flash_Task.h"
 #include "Middleware/AMS_DataBroker.h"
 #include "Drivers_Custom/AMS_flash_driver.h"
+#include "AMS_task_config.h"   /* FEATURE_FLASH_WRITE_ENABLE */
 #include <string.h>
 
 /* -----------------------------------------------------------------------
@@ -170,6 +171,11 @@ void vd_Persist_Init(void) {
 
 bool b_Persist_SaveConfig(void) {
     if (!s_state.is_initialized) return false;
+
+#if (FEATURE_FLASH_WRITE_ENABLE == 0)
+    /* Flash writes disabled: return without touching flash (testing mode). */
+    return true;
+#endif
 
     // 1. Obtener datos actuales del DataBroker
     AMS_Persistent_Config_t current_cfg = { 0 };
