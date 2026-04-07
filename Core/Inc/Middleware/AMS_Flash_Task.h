@@ -1,8 +1,15 @@
 /**
- * @file    AMS_persistence_manager.h
- * @brief   Gestor de Persistencia (Middleware).
- *          Abstrae la lógica de búsqueda/escritura circular de registros en Flash.
- *          Habla con el DataBroker para cargar y guardar la configuración.
+ * @file    AMS_Flash_Task.h
+ * @brief   Flash persistence middleware task.
+ *          Circular-buffer read/write of records in internal Flash.
+ *          Communicates with the DataBroker to load and save persistent config.
+ *
+ * Usage (from main.c task entry):
+ *   void Flash_Memory_Start(void *argument) {
+ *       vd_Persist_Task_Init();
+ *       vd_Persist_TaskProcess();
+ *   }
+ *
  * @author  Eneko Juanena
  * @date    11 de Marzo de 2026
  */
@@ -13,29 +20,34 @@
 #include <stdint.h>
 
 /**
- * @brief  Inicializa el gestor de persistencia.
- *         Escanea la Flash para encontrar el último registro válido
- *         y carga los datos en el DataBroker.
- *         Si no hay datos previos, carga valores por defecto.
- *
- * @note   *** COMENTAR ESTA LLAMADA en main.c para desactivar la persistencia ***
+ * @brief Initializes the Flash persistence subsystem for this task.
+ *        Scans Flash sectors, loads the latest valid record into the DataBroker
+ *        (or loads defaults if Flash is blank), and prints a boot diagnostic.
+ *        Must be called once at the start of Flash_Memory_Start() before the task loop.
  */
-void vd_Persist_Init(void);
+void vd_Persist_Task_Init(void);
 
 /**
- * @brief  Guarda la configuración actual del DataBroker en Flash.
- *         Escribe en el siguiente slot libre (circular).
- *         Si el sector actual está lleno, borra el alternativo y salta a él.
+ * @brief Infinite RTOS loop for the Flash persistence task.
+ *        Placeholder for future scheduled save logic (e.g. periodic SOC save).
+ *        Must be called from Flash_Memory_Start() after vd_Persist_Task_Init().
+ */
+void vd_Persist_TaskProcess(void);
+
+/**
+ * @brief Saves the current DataBroker config to Flash.
+ *        Writes to the next free slot (circular). Erases the alternate sector
+ *        and switches to it when the active sector is full.
  *
- * @retval true  si la escritura fue exitosa.
- * @retval false si hubo error o el sistema no está inicializado.
+ * @retval true  if the write was successful.
+ * @retval false if an error occurred or the module is not initialized.
  */
 bool b_Persist_SaveConfig(void);
 
 /**
- * @brief  Devuelve el número de registro (slot) donde se ha escrito por última vez.
- *         Útil para debug desde la consola.
- * @retval Índice del último slot escrito (0 = ninguno aún).
+ * @brief Returns the global slot index of the last written Flash record.
+ *        Useful for debug output.
+ * @retval Index of the last written slot (0 = none yet).
  */
 uint32_t u32_Persist_GetLastSlotIndex(void);
 

@@ -1,11 +1,16 @@
 /**
  * @file    AMS_CAN_Task.c
- * @brief   Implementación del patrón ISR → Queue → Task → Broker para el CAN2.
+ * @brief   RTOS task for CAN2 RX/TX management.
  *
- * Flujo de datos RX:
- *   1. La ISR (HAL_CAN_RxFifo0MsgPendingCallback en main.c) recibe el mensaje HW.
- *   2. La ISR llama a vd_CAN_RxQueue_PostFromISR() → mete el paquete en la Queue.
- *   3. La tarea RTOS vd_CAN_Manager_TaskProcess() se despierta, parsea y manda al Broker.
+ * Init sequence (called once from CAN_Start in main.c):
+ *   vd_CAN_Task_Init()  →  creates RX queue, binds driver, configures filter,
+ *                           starts CAN peripheral with RX FIFO0 interrupt.
+ *
+ * Data flow (RX):
+ *   ISR (HAL_CAN_RxFifo0MsgPendingCallback)
+ *     → vd_CAN_RxQueue_PostFromISR()  [ISR-safe]
+ *     → osMessageQueue
+ *     → vd_CAN_Manager_TaskProcess()  [RTOS thread: parse & update Broker]
  */
 
 #include "Middleware/AMS_CAN_Task.h"
@@ -40,8 +45,37 @@ static osMessageQueueId_t s_can_rx_queue = NULL;
  * IMPLEMENTACIÓN PÚBLICA
  * -------------------------------------------------------------------------- */
 
-void vd_CAN_RxQueue_Init(void) {
+/* --------------------------------------------------------------------------
+ * PRIVATE FUNCTIONS
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Creates the internal FreeRTOS RX queue (capacity: 8 raw packets).
+ *        Called internally by vd_CAN_Task_Init — not part of the public API.
+ */
+static void prv_can_rx_queue_create(void) {
     s_can_rx_queue = osMessageQueueNew(8u, sizeof(CAN_RxPacket_t), NULL);
+}
+
+
+/* --------------------------------------------------------------------------
+ * PUBLIC IMPLEMENTATION
+ * -------------------------------------------------------------------------- */
+
+void vd_CAN_Task_Init(CAN_HandleTypeDef *phcan) {
+    /* 1. Create the RX queue before enabling the interrupt */
+    prv_can_rx_queue_create();
+
+    /* 2. Bind the HAL handle to the driver */
+    vd_AMS_CAN_Init(phcan);
+
+    /* 3. Configure the Inverter Status filter (ID 0x181, exact match, bank 14) */
+    b_AMS_CAN_ConfigureFilter(0x181, 0x181, 14);
+
+    /* 4. Start the peripheral and enable the RX FIFO0 interrupt */
+    if (b_AMS_CAN_Start() != HAL_OK) {
+        Error_Handler();
+    }
 }
 
 void vd_CAN_RxQueue_PostFromISR(CAN_RxHeaderTypeDef *rx_header, uint8_t rx_data[8]) {

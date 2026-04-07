@@ -1,17 +1,45 @@
 /**
  * @file    AMS_ADC_Task.c
- * @brief   Implementación de la tarea RTOS para procesar el hardware ADC.
+ * @brief   RTOS task for ADC acquisition and physical-unit conversion.
+ *
+ * Init sequence (called once from ADC_Start in main.c):
+ *   vd_ADC_Task_Init()  →  starts DMA on ADC1 & ADC2, starts trigger timers.
+ *
+ * Task loop (infinite, called from ADC_Start after init):
+ *   vd_ADC_Manager_TaskProcess()  →  reads Broker, converts units, writes back.
  */
 
 #include "Middleware/AMS_ADC_Task.h"
 #include "Middleware/AMS_DataBroker.h"
-#include "Middleware/AMS_Led_Task.h" /* Opcional, para debug visual */
+#include "Middleware/AMS_Led_Task.h"       /* Optional: heartbeat LED feedback */
 #include "Algorithms/AMS_sensors.h"
-#include "cmsis_os.h" /* Para osDelay */
+#include "Drivers_Custom/AMS_adc_driver.h" /* vd_AMS_ADC_Init */
+#include "cmsis_os.h"
+
+/* -----------------------------------------------------------------------
+ * Task init
+ * ----------------------------------------------------------------------- */
 
 /**
- * @brief Bucle infinito de la tarea RTOS que procesa el ADC.
- *        Se ejecuta a una frecuencia fija dictaminada por osDelay.
+ * @brief Initializes the ADC hardware for this task.
+ *        Delegates to the ADC driver: starts DMA on ADC1 & ADC2 and their
+ *        respective trigger timers (TIM2 → ADC1, TIM3 → ADC2).
+ */
+void vd_ADC_Task_Init(ADC_HandleTypeDef *phadc1,
+                      ADC_HandleTypeDef *phadc2,
+                      TIM_HandleTypeDef *phtim2,
+                      TIM_HandleTypeDef *phtim3) {
+    vd_AMS_ADC_Init(phadc1, phadc2, phtim2, phtim3);
+}
+
+/* -----------------------------------------------------------------------
+ * Task loop
+ * ----------------------------------------------------------------------- */
+
+/**
+ * @brief Infinite RTOS loop: reads filtered ADC raw counts from the Broker,
+ *        converts them to millivolts and then to physical units (mm, V),
+ *        and writes the results back to the Broker.
  */
 void vd_ADC_Manager_TaskProcess(void) {
     /* Variables locales para extraer del Broker */

@@ -1,12 +1,18 @@
 /**
- * @file    can_manager_task.h
+ * @file    AMS_CAN_Task.h
  * @brief   RTOS Task API for managing CAN TX polling and RX via Queue.
  *
  * Architecture:
- *   ISR (HAL_CAN_RxFifo0MsgPendingCallback)
- *     └─> vd_CAN_RxQueue_PostFromISR()   [called from main.c callback]
+ *   ISR (HAL_CAN_RxFifo0MsgPendingCallback in main.c)
+ *     └─> vd_CAN_RxQueue_PostFromISR()   [ISR-safe, called from HAL callback]
  *           └─> osMessageQueue (FreeRTOS)
- *                 └─> vd_CAN_Manager_TaskProcess()  [RTOS thread - parses & updates Broker]
+ *                 └─> vd_CAN_Manager_TaskProcess()  [RTOS thread: parse & update Broker]
+ *
+ * Usage (from main.c task entry):
+ *   void CAN_Start(void *argument) {
+ *       vd_CAN_Task_Init(&hcan2);
+ *       vd_CAN_Manager_TaskProcess();
+ *   }
  */
 
 #ifndef MIDDLEWARE_AMS_CAN_TASK_H_
@@ -19,25 +25,27 @@ extern "C" {
 #include "main.h"
 
 /**
- * @brief Inicializa la Queue interna de paquetes CAN RX.
- *        Debe llamarse antes de osKernelStart() en main.c.
+ * @brief Initializes the CAN task subsystem.
+ *        Performs in order: RX queue creation, driver binding, filter
+ *        configuration, and CAN peripheral start with RX interrupt enabled.
+ *        Must be called once at the start of CAN_Start() before the task loop.
+ *
+ * @param phcan  Pointer to the CAN2 peripheral handle.
  */
-void vd_CAN_RxQueue_Init(void);
+void vd_CAN_Task_Init(CAN_HandleTypeDef *phcan);
 
 /**
- * @brief Publica un paquete CAN RAW en la Queue desde la ISR del callback.
- *        Es segura para llamarse desde contexto de interrupción.
- * @param rx_header   Puntero al header del mensaje recibido.
- * @param rx_data     Array de 8 bytes de datos del mensaje.
+ * @brief Posts a raw CAN packet into the RX queue from the HAL ISR callback.
+ *        ISR-safe (uses osMessageQueuePut with timeout=0).
+ * @param rx_header  Pointer to the received message header.
+ * @param rx_data    8-byte raw payload.
  */
 void vd_CAN_RxQueue_PostFromISR(CAN_RxHeaderTypeDef *rx_header, uint8_t rx_data[8]);
 
 /**
- * @brief Hilo principal del CAN para FreeRTOS.
- *        - Espera en la Queue los paquetes RX del Inversor.
- *        - Parsea y manda al DataBroker.
- *        - Gestiona el TX del botón azul.
- *        Debe invocarse desde 'CAN_Start' en main.c.
+ * @brief Infinite RTOS loop: drains the RX queue, parses messages into the
+ *        DataBroker, and polls the blue button for TX.
+ *        Must be called from CAN_Start() after vd_CAN_Task_Init().
  */
 void vd_CAN_Manager_TaskProcess(void);
 

@@ -44,6 +44,6 @@
  * WARNING: Setting to 0 means NO data will be committed to flash.
  *          SOC and cycle_count WILL NOT persist across power cycles.
  */
-#define FEATURE_FLASH_WRITE_ENABLE  1
+#define FEATURE_FLASH_WRITE_ENABLE  0
 
 #endif /* AMS_TASK_CONFIG_H_ */

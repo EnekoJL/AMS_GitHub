@@ -25,9 +25,6 @@
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
 #include "AMS_task_config.h"                   /* Compile-time task/feature flags */
-#include "Drivers_Custom/AMS_adc_driver.h"
-#include "Drivers_Custom/AMS_can_driver.h"
-#include "Algorithms/AMS_sensors.h"
 #include "Middleware/AMS_Logger_Task.h"
 #include "Middleware/AMS_Led_Task.h"
 #include "Middleware/AMS_DataBroker.h"
@@ -211,30 +208,8 @@ int main(void) {
 	MX_CAN2_Init();
 	/* USER CODE BEGIN 2 */
 
-	/* --- Application layer init --- */
+	/* --- Shared infrastructure init (must run before any task) --- */
 	b_Broker_Init();
-	vd_AMS_ADC_Init(&hadc1, &hadc2, &htim2, &htim3); /* ADC acquisition init        */
-	vd_Logger_Init();                                 /* SD Card logger init          */
-#if (TASK_FLASH_MEMO_ENABLE == 1)
-	vd_Persist_Init();                                /* Flash persistence init       */
-#endif
-
-	vd_CAN_RxQueue_Init();                           //ESTO ES PARA LA QUEUE DE MENSAJES CAN RX
-	vd_LED_Manager_Init();                           //ESTO ES PARA LA GESTIÓN DE LEDS
-
-	/* --- CAN2 startup via driver --- */
-	vd_AMS_CAN_Init(&hcan2);
-	b_AMS_CAN_ConfigureFilter(0x181, 0x181, 14);    // Inverter Status
-	if (b_AMS_CAN_Start() != HAL_OK) {
-		Error_Handler();
-	}
-
-	/* --- Boot diagnostics --- */
-	AMS_Persistent_Config_t init_cfg;
-	b_Broker_Get_PersistentConfig(&init_cfg);
-	printf("\r\n[BOOT] SOC loaded from Flash: %u.%u %% (cycles: %u)\r\n",
-			init_cfg.soc_percent_x10 / 10, init_cfg.soc_percent_x10 % 10,
-			init_cfg.cycle_count);
 
 	/* USER CODE END 2 */
 
@@ -493,22 +468,7 @@ static void MX_CAN2_Init(void) {
 		Error_Handler();
 	}
 	/* USER CODE BEGIN CAN2_Init 2 */
-	CAN_FilterTypeDef canfilterconfig;
-
-	canfilterconfig.FilterActivation = CAN_FILTER_ENABLE;
-	canfilterconfig.FilterBank = 14; /* CAN2 filter banks typically start from 14 */
-	canfilterconfig.FilterFIFOAssignment = CAN_RX_FIFO0; /* Mapped to RX0 interrupt */
-	canfilterconfig.FilterIdHigh = 0x181 << 5;
-	canfilterconfig.FilterIdLow = 0x0000;
-	canfilterconfig.FilterMaskIdHigh = 0x181 << 5;
-	canfilterconfig.FilterMaskIdLow = 0x0000;
-	canfilterconfig.FilterMode = CAN_FILTERMODE_IDMASK;
-	canfilterconfig.FilterScale = CAN_FILTERSCALE_32BIT;
-	canfilterconfig.SlaveStartFilterBank = 14;
-
-	if (HAL_CAN_ConfigFilter(&hcan2, &canfilterconfig) != HAL_OK) {
-		Error_Handler();
-	}
+	/* Filter configured at application level inside vd_CAN_Task_Init() */
 	/* USER CODE END CAN2_Init 2 */
 
 }
@@ -1015,9 +975,10 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void *argument) {
 	/* USER CODE BEGIN 5 */
-	/* Infinite loop */
+	vd_LED_Manager_Init();
+
+	/* Infinite loop: runs the LED state machine at 100 Hz */
 	for (;;) {
-		/* Tarea de mantenimiento: Máquina de estados de los LEDs (no bloqueante) */
 		vd_LED_Manager_Process();
 		osDelay(10);
 	}
@@ -1033,6 +994,7 @@ void StartDefaultTask(void *argument) {
 /* USER CODE END Header_ADC_Start */
 void ADC_Start(void *argument) {
 	/* USER CODE BEGIN ADC_Start */
+	vd_ADC_Task_Init(&hadc1, &hadc2, &htim2, &htim3);
 	vd_ADC_Manager_TaskProcess();
 	/* USER CODE END ADC_Start */
 }
@@ -1046,6 +1008,7 @@ void ADC_Start(void *argument) {
 /* USER CODE END Header_SD_Card_Start */
 void SD_Card_Start(void *argument) {
 	/* USER CODE BEGIN SD_Card_Start */
+	vd_Logger_Init();
 	vd_Logger_TaskProcess();
 	/* USER CODE END SD_Card_Start */
 }
@@ -1059,6 +1022,7 @@ void SD_Card_Start(void *argument) {
 /* USER CODE END Header_CAN_Start */
 void CAN_Start(void *argument) {
 	/* USER CODE BEGIN CAN_Start */
+	vd_CAN_Task_Init(&hcan2);
 	vd_CAN_Manager_TaskProcess();
 	/* USER CODE END CAN_Start */
 }
@@ -1072,10 +1036,8 @@ void CAN_Start(void *argument) {
 /* USER CODE END Header_Flash_Memory_Start */
 void Flash_Memory_Start(void *argument) {
 	/* USER CODE BEGIN Flash_Memory_Start */
-	/* Infinite loop */
-	for (;;) {
-		osDelay(1);
-	}
+	vd_Persist_Task_Init();
+	vd_Persist_TaskProcess();
 	/* USER CODE END Flash_Memory_Start */
 }
 

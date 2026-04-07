@@ -1,20 +1,19 @@
 /**
  * @file    AMS_Flash_Task.c
- * @brief   Implementación del Gestor de Persistencia (Middleware).
+ * @brief   Flash persistence middleware task.
  *
- *  ESTRATEGIA DE BUFFER CIRCULAR "PING-PONG":
- *  ─────────────────────────────────────────────
- *  Se usan 2 sectores de 128 KB (S22 y S23) al final del Banco 2.
- *  Dentro del sector activo se van escribiendo registros de 12 bytes
- *  secuencialmente hacia arriba, SIN borrar. Solo se borra el sector
- *  alternativo cuando el actual está lleno, y se continúa en él.
- *  Así el desgaste se reparte entre ambos sectores (>2M ciclos totales).
+ *  CIRCULAR PING-PONG BUFFER STRATEGY:
+ *  ──────────────────────────────────────────────────
+ *  Two 128 KB sectors (S22 and S23) at the end of Bank 2 are used.
+ *  Records (12 bytes each) are appended sequentially — no erase on write.
+ *  The alternate sector is only erased when the active one is full, then
+ *  writing continues there. Wear is split evenly (>2M total cycles).
  *
- *  MAPA DE MEMORIA:
- *    S22: 0x081C0000 → 0x081DFFFF  (128 KB = 10.922 registros de 12 bytes)
- *    S23: 0x081E0000 → 0x081FFFFF  (128 KB = 10.922 registros de 12 bytes)
+ *  MEMORY MAP:
+ *    S22: 0x081C0000 → 0x081DFFFF  (128 KB = 10,922 records of 12 bytes)
+ *    S23: 0x081E0000 → 0x081FFFFF  (128 KB = 10,922 records of 12 bytes)
  *
- *  FORMATO DE 1 REGISTRO (12 bytes):
+ *  RECORD FORMAT (12 bytes):
  *    [magic: 4B][soc_x10: 2B][cycle: 2B][crc: 4B]
  *
  * @author  Eneko Juanena
@@ -25,6 +24,8 @@
 #include "Middleware/AMS_DataBroker.h"
 #include "Drivers_Custom/AMS_flash_driver.h"
 #include "AMS_task_config.h"   /* FEATURE_FLASH_WRITE_ENABLE */
+#include "cmsis_os.h"          /* osDelay */
+#include <stdio.h>
 #include <string.h>
 
 /* -----------------------------------------------------------------------
@@ -104,7 +105,7 @@ static uint32_t prv_scan_sector(uint32_t base_addr, AMS_Flash_Record_t *p_last_v
  * Implementación pública
  * ----------------------------------------------------------------------- */
 
-void vd_Persist_Init(void) {
+static void vd_Persist_Init(void) {
     AMS_Flash_Record_t best_record = { 0 };
     bool found_any = false;
 
@@ -224,4 +225,37 @@ bool b_Persist_SaveConfig(void) {
 
 uint32_t u32_Persist_GetLastSlotIndex(void) {
     return s_state.last_slot_index;
+}
+
+/* -----------------------------------------------------------------------
+ * Task entry points (called from Flash_Memory_Start in main.c)
+ * ----------------------------------------------------------------------- */
+
+/**
+ * @brief Initializes the Flash persistence subsystem.
+ *        Scans both Flash sectors, finds the most recent valid record,
+ *        loads it into the DataBroker (or sets defaults on blank Flash),
+ *        and prints a boot diagnostic over UART.
+ */
+void vd_Persist_Task_Init(void) {
+    vd_Persist_Init();
+
+    /* Boot diagnostic: show the SOC loaded from Flash */
+    AMS_Persistent_Config_t init_cfg;
+    b_Broker_Get_PersistentConfig(&init_cfg);
+    printf("\r\n[BOOT] SOC loaded from Flash: %u.%u %% (cycles: %u)\r\n",
+           init_cfg.soc_percent_x10 / 10,
+           init_cfg.soc_percent_x10 % 10,
+           init_cfg.cycle_count);
+}
+
+/**
+ * @brief Infinite RTOS loop for the Flash persistence task.
+ *        Placeholder for future scheduled save logic (e.g. periodic SOC save).
+ */
+void vd_Persist_TaskProcess(void) {
+    for (;;) {
+        /* TODO: add periodic b_Persist_SaveConfig() call here when needed */
+        osDelay(1000);
+    }
 }
