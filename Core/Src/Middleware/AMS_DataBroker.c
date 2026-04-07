@@ -15,11 +15,13 @@
 static AMS_ADC_Data_t           s_adc_data          = {0};
 static Vehicle_Data_t           s_vehiculo_state    = {0};
 static AMS_Persistent_Config_t  s_persistent_config = {0};
+static GPS_Data_t               s_gps_data          = {0};
 
 /* Mutexes para acceso concurrente seguro */
 static osMutexId_t s_mutex_vehiculo   = NULL;
 static osMutexId_t s_mutex_adc        = NULL;
 static osMutexId_t s_mutex_persistent = NULL;
+static osMutexId_t s_mutex_gps        = NULL;
 
 /* Atributos de los Mutexes */
 static const osMutexAttr_t s_mutex_attr = {
@@ -43,11 +45,15 @@ void b_Broker_Init(void) {
     if (s_mutex_persistent == NULL) {
         s_mutex_persistent = osMutexNew(&s_mutex_attr);
     }
+    if (s_mutex_gps == NULL) {
+        s_mutex_gps = osMutexNew(&s_mutex_attr);
+    }
     
     // Inicializamos las estructuras a cero por seguridad
     memset(&s_vehiculo_state, 0, sizeof(Vehicle_Data_t));
     memset(&s_adc_data, 0, sizeof(AMS_ADC_Data_t));
     memset(&s_persistent_config, 0, sizeof(AMS_Persistent_Config_t));
+    memset(&s_gps_data, 0, sizeof(GPS_Data_t));
     
     b_is_initialized = true;
 }
@@ -146,5 +152,25 @@ bool b_Broker_Get_PersistentConfig(AMS_Persistent_Config_t *p_out) {
     memcpy(p_out, &s_persistent_config, sizeof(AMS_Persistent_Config_t));
     osMutexRelease(s_mutex_persistent);
     
+    return true;
+}
+
+/* ========================= GPS DATA ============================= */
+
+bool b_Broker_Update_GPSData(const GPS_Data_t *p_new_data) {
+    if (p_new_data == NULL || !b_is_initialized) return false;
+
+    if (osMutexAcquire(s_mutex_gps, osWaitForever) != osOK) return false;
+    memcpy(&s_gps_data, p_new_data, sizeof(GPS_Data_t));
+    osMutexRelease(s_mutex_gps);
+    return true;
+}
+
+bool b_Broker_Get_GPSData(GPS_Data_t *p_copy) {
+    if (p_copy == NULL || !b_is_initialized) return false;
+
+    if (osMutexAcquire(s_mutex_gps, osWaitForever) != osOK) return false;
+    memcpy(p_copy, &s_gps_data, sizeof(GPS_Data_t));
+    osMutexRelease(s_mutex_gps);
     return true;
 }

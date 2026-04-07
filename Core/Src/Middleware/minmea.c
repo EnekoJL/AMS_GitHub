@@ -12,6 +12,38 @@
 #include <string.h>
 #include <stdarg.h>
 
+/* -----------------------------------------------------------------------
+ * Portable timegm() for ARM newlib (which lacks the GNU POSIX extension).
+ * Only used by minmea_gettime(). Not called anywhere in AMS_GPS_Task.c.
+ * ----------------------------------------------------------------------- */
+#ifndef timegm
+static time_t timegm(struct tm *tm)
+{
+    static const int s_dim[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
+    int  year = tm->tm_year + 1900;
+    long days = 0;
+
+    /* Days for full years since epoch */
+    for (int y = 1970; y < year; y++) {
+        days += 365 + (((y % 4 == 0) && (y % 100 != 0)) || (y % 400 == 0) ? 1 : 0);
+    }
+    /* Days for full months in the current year */
+    for (int m = 0; m < tm->tm_mon; m++) {
+        days += s_dim[m];
+        if (m == 1 && (((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0))) {
+            days++; /* leap February */
+        }
+    }
+    days += tm->tm_mday - 1;
+
+    return (time_t)(days * 86400L
+                  + (long)tm->tm_hour * 3600L
+                  + (long)tm->tm_min  * 60L
+                  + (long)tm->tm_sec);
+}
+#endif /* timegm */
+
+
 #define boolstr(s) ((s) ? "true" : "false")
 #define countof(array) (sizeof(array) / sizeof(array[0]))
 

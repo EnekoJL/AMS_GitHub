@@ -30,6 +30,7 @@
 #define TASK_SD_CARD_ENABLE      1  /**< SD Card / Logger task             */
 #define TASK_CAN_ENABLE          1  /**< CAN bus task                      */
 #define TASK_FLASH_MEMO_ENABLE   1  /**< Flash persistence task            */
+#define TASK_GPS_ENABLE          1  /**< GPS NMEA task (USART6, DMA)       */
 
 /* =========================================================================
  * Sub-feature enables

@@ -63,4 +63,20 @@ void vd_Broker_Set_PersistentConfig(const AMS_Persistent_Config_t *p_config);
  */
 bool b_Broker_Get_PersistentConfig(AMS_Persistent_Config_t *p_out);
 
+/* ----- GPS Data ----- */
+/**
+ * @brief Writes a new GPS snapshot into the DataBroker.
+ *        Called by AMS_GPS_Task after each parsed RMC/GGA sentence.
+ * @param p_new_data  Pointer to the new GPS_Data_t to store.
+ * @retval true if successful.
+ */
+bool b_Broker_Update_GPSData(const GPS_Data_t *p_new_data);
+
+/**
+ * @brief Returns a safe copy of the latest GPS data.
+ * @param p_copy  Pointer to the GPS_Data_t that will receive the copy.
+ * @retval true if successful.
+ */
+bool b_Broker_Get_GPSData(GPS_Data_t *p_copy);
+
 #endif /* AMS_DATABROKER_H_ */

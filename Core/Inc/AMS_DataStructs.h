@@ -11,6 +11,7 @@
 #define AMS_DATASTRUCTS_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /* =========== ESTRUCTURAS DE DATOS DEL SISTEMA =========== */
 
@@ -32,11 +33,42 @@ typedef struct {
  *        Representa el estado fisico actual de la moto.
  */
 typedef struct {
-    uint32_t bateria_12v_mV;       // Tension en milivoltios (ej. 12500 -> 12.5V)
-    uint32_t recorrido_susp_1_dmm; // Recorrido en decimas de mm (ej. 1452 -> 145.2 mm)
-    uint32_t recorrido_susp_2_dmm; // Recorrido en decimas de mm (ej. 485 -> 48.5 mm)
-    int16_t  inverter_rpm;         // Revoluciones del motor electrico (del Inversor via CAN)
+    uint32_t bateria_12v_mV;       // Battery voltage in millivolts (e.g. 12500 = 12.5 V)
+    uint32_t recorrido_susp_1_dmm; // Suspension travel in tenths of mm (e.g. 1452 = 145.2 mm)
+    uint32_t recorrido_susp_2_dmm; // Suspension travel in tenths of mm (e.g. 485 = 48.5 mm)
+    int16_t  inverter_rpm;         // Motor RPM received from Inverter via CAN
 } Vehicle_Data_t;
+
+/**
+ * @brief GPS data parsed from NMEA sentences (USART6, 115200 baud, DMA idle-line).
+ *        Populated by AMS_GPS_Task from $xxRMC and $xxGGA sentences.
+ *
+ *        Coordinates are stored as integer micro-degrees (×1,000,000) to avoid
+ *        floating-point partial-read races when copying through the Broker mutex.
+ *        The GPS task converts to float internally (minmea) then back to int32.
+ */
+typedef struct {
+    /* Fix status */
+    bool     b_fix_valid;           /* true  = valid position fix (RMC status 'A')    */
+    uint8_t  ui8_fix_quality;       /* 0=none, 1=GPS, 2=DGPS (from GGA)              */
+    uint8_t  ui8_satellites;        /* Satellites tracked (from GGA)                  */
+
+    /* Position — micro-degrees (integer, ×1 000 000) */
+    int32_t  i32_latitude_udeg;     /* e.g.  43123456 =  43.123456° N (negative = S)  */
+    int32_t  i32_longitude_udeg;    /* e.g.   2987654 =   2.987654° E (negative = W)  */
+
+    /* Kinematics (from RMC) */
+    float    f_speed_kph;           /* Speed over ground in km/h                       */
+    float    f_course_deg;          /* True course over ground, 0–360°                 */
+
+    /* UTC timestamp (from RMC) */
+    uint8_t  ui8_hour;
+    uint8_t  ui8_minute;
+    uint8_t  ui8_second;
+
+    /* Reception health */
+    uint32_t ui32_last_fix_tick_ms; /* HAL_GetTick() at last valid RMC sentence        */
+} GPS_Data_t;
 
 /**
  * @brief Datos persistentes del sistema (guardados en Flash interna).

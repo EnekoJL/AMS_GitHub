@@ -63,8 +63,6 @@ void Error_Handler(void);
 #define SPKR_HP_GPIO_Port GPIOE
 #define AUDIO_RST_Pin GPIO_PIN_2
 #define AUDIO_RST_GPIO_Port GPIOE
-#define ARDUINO_USART6_TX_Pin GPIO_PIN_14
-#define ARDUINO_USART6_TX_GPIO_Port GPIOG
 #define FMC_NBL1_Pin GPIO_PIN_1
 #define FMC_NBL1_GPIO_Port GPIOE
 #define FMC_NBL0_Pin GPIO_PIN_0
@@ -123,8 +121,6 @@ void Error_Handler(void);
 #define D28_GPIO_Port GPIOI
 #define LED4_Pin GPIO_PIN_3
 #define LED4_GPIO_Port GPIOK
-#define USART6_RX_Pin GPIO_PIN_9
-#define USART6_RX_GPIO_Port GPIOG
 #define LED2_Pin GPIO_PIN_4
 #define LED2_GPIO_Port GPIOD
 #define uSD_CMD_Pin GPIO_PIN_2
