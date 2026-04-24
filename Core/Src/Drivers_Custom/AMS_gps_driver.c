@@ -20,11 +20,13 @@
 /** Bound HAL UART handle (set by vd_AMS_GPS_Init). */
 static UART_HandleTypeDef *s_phuart = NULL;
 
+#define GPS_DMA_BUF_SIZE 256
+
 /**
  * DMA receive buffer. HAL_UARTEx_ReceiveToIdle_DMA writes GPS bytes here
- * directly. +2 for potential \r\n after max-length sentence.
+ * directly. Increased to 256 to fit a full burst of back-to-back sentences.
  */
-static uint8_t s_dma_buf[MINMEA_MAX_SENTENCE_LENGTH + 2u];
+static uint8_t s_dma_buf[GPS_DMA_BUF_SIZE];
 
 /* -----------------------------------------------------------------------
  * Public implementation

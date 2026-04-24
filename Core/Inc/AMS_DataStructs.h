@@ -49,7 +49,7 @@ typedef struct {
  */
 typedef struct {
     /* Fix status */
-    bool     b_fix_valid;           /* true  = valid position fix (RMC status 'A')    */
+    bool     b_gps_is_connected;    /* true  = valid position fix (RMC status 'A')    */
     uint8_t  ui8_fix_quality;       /* 0=none, 1=GPS, 2=DGPS (from GGA)              */
     uint8_t  ui8_satellites;        /* Satellites tracked (from GGA)                  */
 
@@ -58,8 +58,9 @@ typedef struct {
     int32_t  i32_longitude_udeg;    /* e.g.   2987654 =   2.987654° E (negative = W)  */
 
     /* Kinematics (from RMC) */
-    float    f_speed_kph;           /* Speed over ground in km/h                       */
-    float    f_course_deg;          /* True course over ground, 0–360°                 */
+    int32_t  i32_vel_kmh_x1000;
+    int32_t  i32_vel_knots_x1000;
+    int32_t  i32_vel_ms_x1000;
 
     /* UTC timestamp (from RMC) */
     uint8_t  ui8_hour;

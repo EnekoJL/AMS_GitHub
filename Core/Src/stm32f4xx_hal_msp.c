@@ -26,12 +26,14 @@ extern DMA_HandleTypeDef hdma_adc1;
 
 extern DMA_HandleTypeDef hdma_adc2;
 
+extern DMA_HandleTypeDef hdma_usart3_rx;
+
 extern DMA_HandleTypeDef hdma_usart6_rx;
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
-
-/* USER CODE END TD */
+DMA_HandleTypeDef hdma_sdio_rx;
+DMA_HandleTypeDef hdma_sdio_tx;
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN Define */
@@ -377,7 +379,47 @@ void HAL_SD_MspInit(SD_HandleTypeDef* hsd)
     HAL_NVIC_SetPriority(SDIO_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(SDIO_IRQn);
     /* USER CODE BEGIN SDIO_MspInit 1 */
+    __HAL_RCC_DMA2_CLK_ENABLE();
+    
+    /* SDIO_RX Init */
+    hdma_sdio_rx.Instance = DMA2_Stream3;
+    hdma_sdio_rx.Init.Channel = DMA_CHANNEL_4;
+    hdma_sdio_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    hdma_sdio_rx.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_sdio_rx.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_sdio_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
+    hdma_sdio_rx.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
+    hdma_sdio_rx.Init.Mode = DMA_PFCTRL;
+    hdma_sdio_rx.Init.Priority = DMA_PRIORITY_VERY_HIGH;
+    hdma_sdio_rx.Init.FIFOMode = DMA_FIFOMODE_ENABLE;
+    hdma_sdio_rx.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
+    hdma_sdio_rx.Init.MemBurst = DMA_MBURST_INC4;
+    hdma_sdio_rx.Init.PeriphBurst = DMA_PBURST_INC4;
+    if (HAL_DMA_Init(&hdma_sdio_rx) != HAL_OK) { Error_Handler(); }
+    __HAL_LINKDMA(hsd,hdmarx,hdma_sdio_rx);
 
+    /* SDIO_TX Init */
+    hdma_sdio_tx.Instance = DMA2_Stream6;
+    hdma_sdio_tx.Init.Channel = DMA_CHANNEL_4;
+    hdma_sdio_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
+    hdma_sdio_tx.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_sdio_tx.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_sdio_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
+    hdma_sdio_tx.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
+    hdma_sdio_tx.Init.Mode = DMA_PFCTRL;
+    hdma_sdio_tx.Init.Priority = DMA_PRIORITY_VERY_HIGH;
+    hdma_sdio_tx.Init.FIFOMode = DMA_FIFOMODE_ENABLE;
+    hdma_sdio_tx.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
+    hdma_sdio_tx.Init.MemBurst = DMA_MBURST_INC4;
+    hdma_sdio_tx.Init.PeriphBurst = DMA_PBURST_INC4;
+    if (HAL_DMA_Init(&hdma_sdio_tx) != HAL_OK) { Error_Handler(); }
+    __HAL_LINKDMA(hsd,hdmatx,hdma_sdio_tx);
+
+    /* SDIO DMA interrupt Init */
+    HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
+    HAL_NVIC_SetPriority(DMA2_Stream6_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(DMA2_Stream6_IRQn);
     /* USER CODE END SDIO_MspInit 1 */
 
   }
@@ -517,6 +559,25 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     GPIO_InitStruct.Alternate = GPIO_AF7_USART3;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+    /* USART3 DMA Init */
+    /* USART3_RX Init */
+    hdma_usart3_rx.Instance = DMA1_Stream1;
+    hdma_usart3_rx.Init.Channel = DMA_CHANNEL_4;
+    hdma_usart3_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    hdma_usart3_rx.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_usart3_rx.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_usart3_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_usart3_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    hdma_usart3_rx.Init.Mode = DMA_NORMAL;
+    hdma_usart3_rx.Init.Priority = DMA_PRIORITY_LOW;
+    hdma_usart3_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    if (HAL_DMA_Init(&hdma_usart3_rx) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(huart,hdmarx,hdma_usart3_rx);
+
     /* USER CODE BEGIN USART3_MspInit 1 */
 
     /* USER CODE END USART3_MspInit 1 */
@@ -592,6 +653,8 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
     */
     HAL_GPIO_DeInit(GPIOB, STLK_RX_Pin|STLK_TX_Pin);
 
+    /* USART3 DMA DeInit */
+    HAL_DMA_DeInit(huart->hdmarx);
     /* USER CODE BEGIN USART3_MspDeInit 1 */
 
     /* USER CODE END USART3_MspDeInit 1 */

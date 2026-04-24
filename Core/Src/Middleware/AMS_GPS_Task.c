@@ -33,10 +33,12 @@
  * Private types
  * ----------------------------------------------------------------------- */
 
-/** One slot in the RX queue — holds a complete raw NMEA sentence. */
+#define GPS_DMA_BUF_SIZE 256
+
+/** One slot in the RX queue — holds a complete raw NMEA burst. */
 typedef struct {
-    char     sentence[MINMEA_MAX_SENTENCE_LENGTH + 2u]; /* raw bytes  */
-    uint16_t ui16_length;                               /* byte count */
+    char     sentence[GPS_DMA_BUF_SIZE]; /* raw bytes  */
+    uint16_t ui16_length;                /* byte count */
 } GPS_NmeaPacket_t;
 
 /* -----------------------------------------------------------------------
@@ -73,7 +75,7 @@ static void prv_gps_rx_queue_create(void)
  */
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *hUART, uint16_t ui16_size)
 {
-    if (hUART->Instance != USART6) {
+    if (hUART->Instance != USART6 && hUART->Instance != USART3) {
         return;
     }
 
@@ -82,6 +84,18 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *hUART, uint16_t ui16_size)
 
     /* 2. Re-arm DMA for the next sentence immediately */
     vd_AMS_GPS_StartReceive();
+}
+
+/**
+ * @brief  HAL error callback: fires when Overrun (ORE), Noise, or Framing error occurs.
+ *         Without this, an ORE will halt the UART DMA reception permanently.
+ */
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance == USART3 || huart->Instance == USART6) {
+        /* Clear errors and re-arm DMA so we don't get stuck */
+        vd_AMS_GPS_StartReceive();
+    }
 }
 
 /* -----------------------------------------------------------------------
@@ -96,10 +110,19 @@ void vd_GPS_Task_Init(UART_HandleTypeDef *phuart)
     /* 2. Bind driver to the HAL handle */
     vd_AMS_GPS_Init(phuart);
 
+    /* Enable USART interrupt for idle line detection if not already enabled */
+    if (phuart->Instance == USART3) {
+        HAL_NVIC_SetPriority(USART3_IRQn, 5, 0);
+        HAL_NVIC_EnableIRQ(USART3_IRQn);
+    } else if (phuart->Instance == USART6) {
+        HAL_NVIC_SetPriority(USART6_IRQn, 5, 0);
+        HAL_NVIC_EnableIRQ(USART6_IRQn);
+    }
+
     /* 3. Arm the first DMA reception */
     vd_AMS_GPS_StartReceive();
 
-    printf("[GPS] Task initialized on USART6 @ 115200 baud\r\n");
+    printf("[GPS] Task initialized on USART @ 115200 baud\r\n");
 }
 
 void vd_GPS_RxQueue_PostFromISR(const uint8_t *p_data, uint16_t ui16_size)
@@ -139,49 +162,80 @@ void vd_GPS_Manager_TaskProcess(void)
             continue;
         }
 
-        /* ---- Parse sentence ---- */
-        switch (minmea_sentence_id(packet.sentence, false)) {
+        /* ---- Parse sentence(s) ---- */
+        /* A single DMA burst may contain multiple back-to-back sentences.
+           We loop through the buffer and extract them one by one. */
+        char *line = packet.sentence;
+        char *next_line;
 
-            case MINMEA_SENTENCE_RMC: {
-                struct minmea_sentence_rmc frame;
-                if (minmea_parse_rmc(&frame, packet.sentence)) {
-                    gps_snapshot.b_fix_valid = frame.valid;
+        while (line != NULL && *line != '\0') {
+            /* Find start of sentence */
+            line = strchr(line, '$');
+            if (line == NULL) {
+                break; /* No more sentences in this burst */
+            }
 
-                    if (frame.valid) {
-                        /* Convert minmea fixed-point to micro-degrees (×1,000,000) */
-                        float lat_deg = minmea_tocoord(&frame.latitude);
-                        float lon_deg = minmea_tocoord(&frame.longitude);
-                        gps_snapshot.i32_latitude_udeg  = (int32_t)(lat_deg * 1000000.0f);
-                        gps_snapshot.i32_longitude_udeg = (int32_t)(lon_deg * 1000000.0f);
+            /* Find end of sentence */
+            next_line = strchr(line, '\n');
+            if (next_line != NULL) {
+                *next_line = '\0'; /* Null terminate this sentence */
+                next_line++;       /* Move pointer to the next sentence */
+            }
 
-                        /* Speed: knots → km/h  (1 kn = 1.852 km/h) */
-                        gps_snapshot.f_speed_kph  = minmea_tofloat(&frame.speed) * 1.852f;
-                        gps_snapshot.f_course_deg = minmea_tofloat(&frame.course);
+            /* Parse the single isolated sentence */
+            switch (minmea_sentence_id(line, false)) {
 
-                        /* UTC time */
-                        gps_snapshot.ui8_hour   = (uint8_t)frame.time.hours;
-                        gps_snapshot.ui8_minute = (uint8_t)frame.time.minutes;
-                        gps_snapshot.ui8_second = (uint8_t)frame.time.seconds;
+                case MINMEA_SENTENCE_RMC: {
+                    struct minmea_sentence_rmc frame;
+                    if (minmea_parse_rmc(&frame, line)) {
+                        gps_snapshot.b_gps_is_connected = frame.valid;
 
-                        gps_snapshot.ui32_last_fix_tick_ms = HAL_GetTick();
+                        if (frame.valid) {
+                            /* Convert to micro-degrees (×1,000,000) using purely integer arithmetic */
+                            if (frame.latitude.scale != 0) {
+                                int32_t lat_degrees = frame.latitude.value / (frame.latitude.scale * 100);
+                                int32_t lat_minutes = frame.latitude.value % (frame.latitude.scale * 100);
+                                gps_snapshot.i32_latitude_udeg = lat_degrees * 1000000 + (int32_t)(((int64_t)lat_minutes * 1000000) / (60 * frame.latitude.scale));
+                            }
+                            
+                            if (frame.longitude.scale != 0) {
+                                int32_t lon_degrees = frame.longitude.value / (frame.longitude.scale * 100);
+                                int32_t lon_minutes = frame.longitude.value % (frame.longitude.scale * 100);
+                                gps_snapshot.i32_longitude_udeg = lon_degrees * 1000000 + (int32_t)(((int64_t)lon_minutes * 1000000) / (60 * frame.longitude.scale));
+                            }
+
+                            /* Speed: knots → km/h → m/s (all integer ×1000) */
+                            gps_snapshot.i32_vel_knots_x1000 = minmea_rescale(&frame.speed, 1000);
+                            gps_snapshot.i32_vel_kmh_x1000   = (gps_snapshot.i32_vel_knots_x1000 * 1852) / 1000;
+                            gps_snapshot.i32_vel_ms_x1000    = (gps_snapshot.i32_vel_kmh_x1000 * 1000) / 3600;
+
+                            /* UTC time */
+                            gps_snapshot.ui8_hour   = (uint8_t)frame.time.hours;
+                            gps_snapshot.ui8_minute = (uint8_t)frame.time.minutes;
+                            gps_snapshot.ui8_second = (uint8_t)frame.time.seconds;
+
+                            gps_snapshot.ui32_last_fix_tick_ms = HAL_GetTick();
+                        }
+
+                        b_Broker_Update_GPSData(&gps_snapshot);
                     }
+                } break;
 
-                    b_Broker_Update_GPSData(&gps_snapshot);
-                }
-            } break;
+                case MINMEA_SENTENCE_GGA: {
+                    struct minmea_sentence_gga frame;
+                    if (minmea_parse_gga(&frame, line)) {
+                        gps_snapshot.ui8_fix_quality = (uint8_t)frame.fix_quality;
+                        gps_snapshot.ui8_satellites  = (uint8_t)frame.satellites_tracked;
+                        b_Broker_Update_GPSData(&gps_snapshot);
+                    }
+                } break;
 
-            case MINMEA_SENTENCE_GGA: {
-                struct minmea_sentence_gga frame;
-                if (minmea_parse_gga(&frame, packet.sentence)) {
-                    gps_snapshot.ui8_fix_quality = (uint8_t)frame.fix_quality;
-                    gps_snapshot.ui8_satellites  = (uint8_t)frame.satellites_tracked;
-                    b_Broker_Update_GPSData(&gps_snapshot);
-                }
-            } break;
+                default:
+                    /* Unneeded sentence type */
+                    break;
+            }
 
-            default:
-                /* MINMEA_UNKNOWN, MINMEA_INVALID, or unneeded sentence types — ignore */
-                break;
+            line = next_line;
         }
     }
 }

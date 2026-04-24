@@ -61,6 +61,7 @@ extern DMA_HandleTypeDef hdma_adc1;
 extern DMA_HandleTypeDef hdma_adc2;
 extern CAN_HandleTypeDef hcan2;
 extern SD_HandleTypeDef hsd;
+extern DMA_HandleTypeDef hdma_usart3_rx;
 extern DMA_HandleTypeDef hdma_usart6_rx;
 extern UART_HandleTypeDef huart6;
 /* USER CODE BEGIN EV */
@@ -188,6 +189,20 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
+  * @brief This function handles DMA1 stream1 global interrupt.
+  */
+void DMA1_Stream1_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA1_Stream1_IRQn 0 */
+
+  /* USER CODE END DMA1_Stream1_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_usart3_rx);
+  /* USER CODE BEGIN DMA1_Stream1_IRQn 1 */
+
+  /* USER CODE END DMA1_Stream1_IRQn 1 */
+}
+
+/**
   * @brief This function handles SDIO global interrupt.
   */
 void SDIO_IRQHandler(void)
@@ -272,5 +287,22 @@ void USART6_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
+extern DMA_HandleTypeDef hdma_sdio_rx;
+extern DMA_HandleTypeDef hdma_sdio_tx;
 
+void DMA2_Stream3_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(&hdma_sdio_rx);
+}
+
+void DMA2_Stream6_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(&hdma_sdio_tx);
+}
+
+void USART3_IRQHandler(void)
+{
+  extern UART_HandleTypeDef huart3;
+  HAL_UART_IRQHandler(&huart3);
+}
 /* USER CODE END 1 */
