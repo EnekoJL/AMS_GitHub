@@ -79,4 +79,19 @@ bool b_Broker_Update_GPSData(const GPS_Data_t *p_new_data);
  */
 bool b_Broker_Get_GPSData(GPS_Data_t *p_copy);
 
+/* ----- Telemetry Data ----- */
+/**
+ * @brief Writes new calculated telemetry into the DataBroker.
+ * @param p_new_data  Pointer to the new AMS_Telemetry_Data_t to store.
+ * @retval true if successful.
+ */
+bool b_Broker_Update_TelemetryData(const AMS_Telemetry_Data_t *p_new_data);
+
+/**
+ * @brief Returns a safe copy of the latest telemetry data.
+ * @param p_copy  Pointer to the AMS_Telemetry_Data_t that will receive the copy.
+ * @retval true if successful.
+ */
+bool b_Broker_Get_TelemetryData(AMS_Telemetry_Data_t *p_copy);
+
 #endif /* AMS_DATABROKER_H_ */

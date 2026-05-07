@@ -66,10 +66,23 @@ typedef struct {
     uint8_t  ui8_hour;
     uint8_t  ui8_minute;
     uint8_t  ui8_second;
+    uint32_t ui32_utc_total_ms;     /* High-res time of day from GPS (includes fractional seconds) */
 
     /* Reception health */
-    uint32_t ui32_last_fix_tick_ms; /* HAL_GetTick() at last valid RMC sentence        */
+    uint32_t ui32_last_fix_tick_ms; /* System tick when data was received             */
 } GPS_Data_t;
+
+/**
+ * @brief Telemetry calculated from GPS data.
+ *        Populated by AMS_Data_Calculator_Task.
+ */
+typedef struct {
+    uint32_t ui32_total_distance_m;
+    int32_t  i32_max_vel_kmh_x1000;
+    int32_t  i32_avg_vel_kmh_x1000;
+    int32_t  i32_max_accel_ms2_x1000;
+    int32_t  i32_max_decel_ms2_x1000;
+} AMS_Telemetry_Data_t;
 
 /**
  * @brief Datos persistentes del sistema (guardados en Flash interna).

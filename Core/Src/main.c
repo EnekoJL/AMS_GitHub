@@ -32,6 +32,7 @@
 #include "Middleware/AMS_CAN_Task.h"
 #include "Middleware/AMS_Flash_Task.h"
 #include "Middleware/AMS_GPS_Task.h"
+#include "Middleware/AMS_Data_Calculator_Task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -71,7 +72,7 @@ DMA_HandleTypeDef hdma_usart6_rx;
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for Task_ADC */
@@ -1000,13 +1001,8 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-	vd_LED_Manager_Init();
-
-	/* Infinite loop: runs the LED state machine at 100 Hz */
-	for (;;) {
-		vd_LED_Manager_Process();
-		osDelay(10);
-	}
+	vd_Calculator_Task_Init();
+	vd_Calculator_Manager_TaskProcess();
   /* USER CODE END 5 */
 }
 
