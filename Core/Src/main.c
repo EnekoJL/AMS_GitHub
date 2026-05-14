@@ -1085,7 +1085,7 @@ void ADC_Start(void *argument)
 void SD_Card_Start(void *argument)
 {
   /* USER CODE BEGIN SD_Card_Start */
-#if TASK_SD_CARD_ENABLE
+#if (TASK_SD_CARD_ENABLE == 1) || (FEATURE_LOGGER_PRINT_ENABLE == 1)
 	vd_Logger_Init();
 	vd_Logger_TaskProcess();
 #else
