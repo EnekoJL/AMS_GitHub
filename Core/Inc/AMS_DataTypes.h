@@ -27,24 +27,24 @@
 #define ADC1_IDX_VREFINT        2u   /**< Buffer offset for CH17 (VREFINT)      */
 
 /* --- VREFINT Factory Calibration (STM32F469, VDDA = 3.3 V @ factory) ---
- * ROM address: 0x1FFF75AA-0x1FFF75AB (16-bit, little-endian)
+ * ROM address: 0x1FFF7A2A-0x1FFF7A2B (16-bit, little-endian)
  * Stores the 12-bit ADC count of VREFINT measured at VDDA = 3.3 V.
  * Used to back-calculate the actual board supply voltage.
  */
-#define AMS_VREFINT_CAL_ADDR        ((volatile uint16_t *)0x1FFF75AAU)
+#define AMS_VREFINT_CAL_ADDR        ((volatile uint16_t *)0x1FFF7A2AU)
 #define VREFINT_CAL_MV          3300u  /**< VDDA at which factory cal was done (mV) */
 #define ADC_MAX_COUNT           4095u  /**< 12-bit ADC full-scale count             */
 
 /* --- Temperature Sensor Factory Calibration (STM32F469) ---
- * TS_CAL1: 12-bit count at 30 °C,  VDDA = 3.3 V  (ROM: 0x1FFF75A8)
- * TS_CAL2: 12-bit count at 110 °C, VDDA = 3.3 V  (ROM: 0x1FFF75CA)
+ * TS_CAL1: 12-bit count at 30 °C,  VDDA = 3.3 V  (ROM: 0x1FFF7A2C)
+ * TS_CAL2: 12-bit count at 110 °C, VDDA = 3.3 V  (ROM: 0x1FFF7A2E)
  * Formula (RM0386 §13.10):
  *   T_cC = ((TS_scaled - TS_CAL1) * (110-30)*100) / (TS_CAL2 - TS_CAL1) + 30*100
  * where TS_scaled = TS_raw * VREFINT_CAL_MV / VDDA_actual_mV
  * Result is in centi-degrees Celsius (e.g. 2547 = 25.47 °C).
  */
-#define TS_CAL1_ADDR            ((volatile uint16_t *)0x1FFF75A8U)
-#define TS_CAL2_ADDR            ((volatile uint16_t *)0x1FFF75CAU)
+#define TS_CAL1_ADDR            ((volatile uint16_t *)0x1FFF7A2CU)
+#define TS_CAL2_ADDR            ((volatile uint16_t *)0x1FFF7A2EU)
 #define TS_CAL1_TEMP_C          30     /**< Temperature (°C) when TS_CAL1 was sampled */
 #define TS_CAL2_TEMP_C          110    /**< Temperature (°C) when TS_CAL2 was sampled */
 

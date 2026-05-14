@@ -62,7 +62,7 @@
  *
  * Set to 0 to silence the terminal output entirely (zero CPU overhead).
  */
-#define FEATURE_LOGGER_PRINT_ENABLE  0
+#define FEATURE_LOGGER_PRINT_ENABLE  1
 
 /**
  * @brief Print period in milliseconds.
