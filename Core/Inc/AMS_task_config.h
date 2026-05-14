@@ -9,11 +9,17 @@
  *    - TASK_SD_CARD_ENABLE      : SD Card / Logger task
  *    - TASK_CAN_ENABLE          : CAN bus task
  *    - TASK_FLASH_MEMO_ENABLE   : Flash persistence task (thread creation)
+ *    - TASK_GPS_ENABLE          : GPS NMEA task (USART6, DMA)
  *
  *  SUB-FEATURE FLAGS:
- *    - FEATURE_FLASH_WRITE_ENABLE : When 0, b_Persist_SaveConfig() returns
- *                                   immediately WITHOUT touching flash.
- *                                   Use during testing to protect flash lifetime.
+ *    - FEATURE_FLASH_WRITE_ENABLE    : When 0, b_Persist_SaveConfig() returns
+ *                                      immediately WITHOUT touching flash.
+ *                                      Use during testing to protect flash lifetime.
+ *    - FEATURE_LOGGER_PRINT_ENABLE   : When 1, the Logger task periodically dumps
+ *                                      all DataBroker structs to the SWO/UART
+ *                                      terminal with ANSI colour formatting.
+ *                                      Independent of SD-card logging.
+ *    - LOGGER_PRINT_PERIOD_MS        : Interval between terminal prints (default 1 Hz).
  *
  * @author  Eneko Juanena
  * @date    25 de Marzo de 2026
@@ -46,5 +52,25 @@
  *          SOC and cycle_count WILL NOT persist across power cycles.
  */
 #define FEATURE_FLASH_WRITE_ENABLE  0
+
+/**
+ * @brief Terminal broker data printer.
+ *
+ * Set to 1 to enable periodic ANSI-coloured printf of ALL DataBroker structs
+ * from within the Logger task.  This is completely independent of the SD-card
+ * logger — both can be active simultaneously or individually.
+ *
+ * Set to 0 to silence the terminal output entirely (zero CPU overhead).
+ */
+#define FEATURE_LOGGER_PRINT_ENABLE  1
+
+/**
+ * @brief Print period in milliseconds.
+ *
+ * Default: 1000 ms  →  1 Hz refresh rate.
+ * Increase for less terminal spam (e.g. 5000 for 0.2 Hz).
+ * Decrease for higher resolution (min recommended: 200 ms).
+ */
+#define LOGGER_PRINT_PERIOD_MS  1000U
 
 #endif /* AMS_TASK_CONFIG_H_ */
