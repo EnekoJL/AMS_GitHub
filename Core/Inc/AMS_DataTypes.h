@@ -31,7 +31,7 @@
  * Stores the 12-bit ADC count of VREFINT measured at VDDA = 3.3 V.
  * Used to back-calculate the actual board supply voltage.
  */
-#define VREFINT_CAL_ADDR        ((volatile uint16_t *)0x1FFF75AAU)
+#define AMS_VREFINT_CAL_ADDR        ((volatile uint16_t *)0x1FFF75AAU)
 #define VREFINT_CAL_MV          3300u  /**< VDDA at which factory cal was done (mV) */
 #define ADC_MAX_COUNT           4095u  /**< 12-bit ADC full-scale count             */
 

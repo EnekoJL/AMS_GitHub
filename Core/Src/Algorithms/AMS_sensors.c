@@ -35,7 +35,7 @@ void Algorithms_Sensors_ProcessVoltages(AMS_ADC_Data_t *p_adc_data) {
      *   VREFINT_CAL  : factory 12-bit count stored in ROM at 3.3 V
      *   VREFINT_DATA : live averaged count from DMA scan (CH17, Rank 3)
      * ===================================================================== */
-    const uint16_t ui16_vrefint_cal  = *VREFINT_CAL_ADDR;
+    const uint16_t ui16_vrefint_cal  = *AMS_VREFINT_CAL_ADDR;
     const uint16_t ui16_vrefint_data = p_adc_data->ui16_vrefint_raw;
 
     uint32_t ui32_vdda_mV;

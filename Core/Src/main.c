@@ -65,8 +65,10 @@ TIM_HandleTypeDef htim3;
 
 UART_HandleTypeDef huart3;
 UART_HandleTypeDef huart6;
-DMA_HandleTypeDef hdma_usart3_rx;
 DMA_HandleTypeDef hdma_usart6_rx;
+
+DMA_HandleTypeDef hdma_sdio_rx;
+DMA_HandleTypeDef hdma_sdio_tx;
 
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -86,7 +88,7 @@ const osThreadAttr_t Task_ADC_attributes = {
 osThreadId_t Task_SD_CardHandle;
 const osThreadAttr_t Task_SD_Card_attributes = {
   .name = "Task_SD_Card",
-  .stack_size = 128 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for Task_CAN */
@@ -274,7 +276,7 @@ int main(void)
         // Force an abort to clear the stuck mailboxes
         HAL_CAN_AbortTxRequest(&hcan2, CAN_TX_MAILBOX0 | CAN_TX_MAILBOX1 | CAN_TX_MAILBOX2);
     }
-    // Use a simple busy loop because HAL_Delay relies on SysTick 
+    // Use a simple busy loop because HAL_Delay relies on SysTick
     // which may be suspended or masked before osKernelStart() is called.
     for(volatile uint32_t i = 0; i < 5000000; i++) {}
 	}
@@ -695,12 +697,8 @@ static void MX_DMA_Init(void)
 
   /* DMA controller clock enable */
   __HAL_RCC_DMA2_CLK_ENABLE();
-  __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA1_Stream1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
   /* DMA2_Stream0_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
