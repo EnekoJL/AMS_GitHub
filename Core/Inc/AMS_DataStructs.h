@@ -16,16 +16,38 @@
 /* =========== ESTRUCTURAS DE DATOS DEL SISTEMA =========== */
 
 /**
- * @brief Estructura de hardware (Datos crudos ADC).
- *        Llenada periodicamente por los callbacks DMA de los ADC1/ADC2.
+ * @brief Hardware data structure (raw and calibrated ADC values).
+ *
+ * --- Raw fields (written by DMA callbacks, volatile) ---
+ *   adc1_filtrado        : CH9  averaged count  (12V battery sense)
+ *   ui16_temp_sensor_raw : CH18 averaged count  (MCU junction temperature)
+ *   ui16_vrefint_raw     : CH17 averaged count  (internal bandgap reference)
+ *   adc2_ch1_filtrado    : ADC2 CH12 averaged   (suspension sensor 1)
+ *   adc2_ch2_filtrado    : ADC2 CH13 averaged   (suspension sensor 2)
+ *
+ * --- Computed fields (written by Algorithms layer, NOT volatile) ---
+ *   ui32_vdda_actual_mV  : Actual board VDD in millivolts (derived from VREFINT)
+ *   voltaje_adc1_mV      : Battery sense in millivolts (VDD-compensated)
+ *   voltaje_adc2_ch1_mV  : Suspension 1 in millivolts  (VDD-compensated)
+ *   voltaje_adc2_ch2_mV  : Suspension 2 in millivolts  (VDD-compensated)
+ *   i32_mcu_temp_cC      : MCU temperature in centi-°C (e.g. 2547 = 25.47 °C)
  */
 typedef struct {
-    volatile uint16_t adc1_filtrado;
-    uint32_t voltaje_adc1_mV;
-    volatile uint16_t adc2_ch1_filtrado;
-    volatile uint16_t adc2_ch2_filtrado;
-    uint32_t voltaje_adc2_ch1_mV;
-    uint32_t voltaje_adc2_ch2_mV;
+    /* --- Raw ADC1 scan results (filled by DMA interrupt callback) --- */
+    volatile uint16_t adc1_filtrado;          /* CH9  Rank1: 12V battery sense  */
+    volatile uint16_t ui16_temp_sensor_raw;   /* CH18 Rank2: MCU temperature    */
+    volatile uint16_t ui16_vrefint_raw;       /* CH17 Rank3: VREFINT bandgap    */
+
+    /* --- Raw ADC2 scan results (filled by DMA interrupt callback) --- */
+    volatile uint16_t adc2_ch1_filtrado;      /* CH12: suspension sensor 1      */
+    volatile uint16_t adc2_ch2_filtrado;      /* CH13: suspension sensor 2      */
+
+    /* --- Computed values (filled by Algorithms_Sensors_ProcessVoltages) --- */
+    uint32_t ui32_vdda_actual_mV;   /* Actual VDD derived from VREFINT (mV)   */
+    uint32_t voltaje_adc1_mV;       /* 12V sense voltage, VDD-compensated (mV) */
+    uint32_t voltaje_adc2_ch1_mV;   /* Suspension 1 voltage, compensated (mV) */
+    uint32_t voltaje_adc2_ch2_mV;   /* Suspension 2 voltage, compensated (mV) */
+    int32_t  i32_mcu_temp_cC;       /* MCU junction temp in centi-°C           */
 } AMS_ADC_Data_t;
 
 /**

@@ -13,8 +13,10 @@
 static ADC_HandleTypeDef *p_hadc1 = NULL;
 static ADC_HandleTypeDef *p_hadc2 = NULL;
 
-/** Buffers persistentes donde escribirá el controlador DMA en background */
-static uint16_t s_dma_buffer_adc1[NUM_MUESTRAS];
+/** ADC1: 3-channel scan [CH9-battery | CH18-temperature | CH17-VREFINT] × NUM_MUESTRAS
+ *  Layout: [bat0, temp0, vref0, bat1, temp1, vref1, ...]
+ */
+static uint16_t s_dma_buffer_adc1[NUM_MUESTRAS * ADC1_NUM_CHANNELS];
 static uint16_t s_dma_buffer_adc2[NUM_MUESTRAS * 2];
 
 /* ================= IMPLEMENTACIÓN DE FUNCIONES ====================== */
@@ -28,7 +30,7 @@ void vd_AMS_ADC_Init(ADC_HandleTypeDef *phadc1, ADC_HandleTypeDef *phadc2, TIM_H
     p_hadc2 = phadc2;
 
     // Lanzamos la DMA contra los buffers estaticos locales
-    HAL_ADC_Start_DMA(phadc1, (uint32_t*)s_dma_buffer_adc1, NUM_MUESTRAS);
+    HAL_ADC_Start_DMA(phadc1, (uint32_t*)s_dma_buffer_adc1, NUM_MUESTRAS * ADC1_NUM_CHANNELS);
     HAL_TIM_Base_Start(phtim2);
 
     HAL_ADC_Start_DMA(phadc2, (uint32_t*)s_dma_buffer_adc2, NUM_MUESTRAS * 2);
@@ -44,16 +46,24 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
     AMS_ADC_Data_t local_adc;
     if (!b_Broker_Get_ADCData(&local_adc)) return;
 
-    /* Filtrado para ADC1 */
+    /* --- ADC1: 3-channel scan (battery | temperature | VREFINT) --- */
     if (hadc == p_hadc1) {
-        uint32_t suma = 0;
-        for (int i = 0; i < NUM_MUESTRAS; i++) {
-            suma += s_dma_buffer_adc1[i];
+        uint32_t ui32_suma_battery = 0u;
+        uint32_t ui32_suma_temp    = 0u;
+        uint32_t ui32_suma_vrefint = 0u;
+
+        /* Interleaved buffer: each triplet is [CH9, CH18, CH17] */
+        for (uint32_t i = 0u; i < NUM_MUESTRAS; i++) {
+            ui32_suma_battery += s_dma_buffer_adc1[i * ADC1_NUM_CHANNELS + ADC1_IDX_BATTERY];
+            ui32_suma_temp    += s_dma_buffer_adc1[i * ADC1_NUM_CHANNELS + ADC1_IDX_TEMP_SENSOR];
+            ui32_suma_vrefint += s_dma_buffer_adc1[i * ADC1_NUM_CHANNELS + ADC1_IDX_VREFINT];
         }
-        local_adc.adc1_filtrado = suma / NUM_MUESTRAS;
-        
-        // Volvemos a lanzar la DMA apuntando al buffer estatico
-        HAL_ADC_Start_DMA(p_hadc1, (uint32_t*)s_dma_buffer_adc1, NUM_MUESTRAS);
+
+        local_adc.adc1_filtrado        = (uint16_t)(ui32_suma_battery / NUM_MUESTRAS);
+        local_adc.ui16_temp_sensor_raw = (uint16_t)(ui32_suma_temp    / NUM_MUESTRAS);
+        local_adc.ui16_vrefint_raw     = (uint16_t)(ui32_suma_vrefint / NUM_MUESTRAS);
+
+        HAL_ADC_Start_DMA(p_hadc1, (uint32_t*)s_dma_buffer_adc1, NUM_MUESTRAS * ADC1_NUM_CHANNELS);
     }
 
     /* Filtrado para ADC2 (2 canales) */

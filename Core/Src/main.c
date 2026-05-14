@@ -72,42 +72,42 @@ DMA_HandleTypeDef hdma_usart6_rx;
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
-  .stack_size = 256 * 4,
+  .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for Task_ADC */
 osThreadId_t Task_ADCHandle;
 const osThreadAttr_t Task_ADC_attributes = {
   .name = "Task_ADC",
-  .stack_size = 512 * 4,
+  .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for Task_SD_Card */
 osThreadId_t Task_SD_CardHandle;
 const osThreadAttr_t Task_SD_Card_attributes = {
   .name = "Task_SD_Card",
-  .stack_size = 512 * 4,
+  .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for Task_CAN */
 osThreadId_t Task_CANHandle;
 const osThreadAttr_t Task_CAN_attributes = {
   .name = "Task_CAN",
-  .stack_size = 512 * 4,
+  .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for Task_Flash_Memo */
 osThreadId_t Task_Flash_MemoHandle;
 const osThreadAttr_t Task_Flash_Memo_attributes = {
   .name = "Task_Flash_Memo",
-  .stack_size = 512 * 4,
+  .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for GPS_Task */
 osThreadId_t GPS_TaskHandle;
 const osThreadAttr_t GPS_Task_attributes = {
   .name = "GPS_Task",
-  .stack_size = 512 * 4,
+  .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
@@ -235,7 +235,7 @@ int main(void)
   /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
-  // osKernelStart();
+  osKernelStart();
 
   /* We should never get here as control is now taken by the scheduler */
 
@@ -357,13 +357,13 @@ static void MX_ADC1_Init(void)
   hadc1.Instance = ADC1;
   hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
-  hadc1.Init.ScanConvMode = DISABLE;
+  hadc1.Init.ScanConvMode = ENABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
   hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T2_TRGO;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.NbrOfConversion = 3;
   hadc1.Init.DMAContinuousRequests = ENABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
@@ -380,8 +380,38 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN ADC1_Init 2 */
 
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_TEMPSENSOR;
+  sConfig.Rank = 2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_VREFINT;
+  sConfig.Rank = 3;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+  /* RM0386 §13.10: VREFINT and Temperature Sensor require min 10 µs sampling time.
+   * At ADC clock = 22.5 MHz (PCLK2/4 = 90/4), 480 cycles = 21.33 µs > 10 µs min.
+   * CubeMX inherited 15-cycle sampling from Rank1 for Ranks 2-3, so we override here.
+   */
+  sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
+
+  sConfig.Channel = ADC_CHANNEL_TEMPSENSOR;
+  sConfig.Rank    = 2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) { Error_Handler(); }
+
+  sConfig.Channel = ADC_CHANNEL_VREFINT;
+  sConfig.Rank    = 3;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) { Error_Handler(); }
   /* USER CODE END ADC1_Init 2 */
 
 }
@@ -1046,7 +1076,7 @@ void StartDefaultTask(void *argument)
 /* USER CODE END Header_ADC_Start */
 void ADC_Start(void *argument)
 {
-	/* USER CODE BEGIN ADC_Start */
+  /* USER CODE BEGIN ADC_Start */
 #if TASK_ADC_ENABLE
 	vd_ADC_Task_Init(&hadc1, &hadc2, &htim2, &htim3);
 	vd_ADC_Manager_TaskProcess();
