@@ -1,17 +1,54 @@
-# Carpetas de compilación
+# ==========================================
+# STM32CubeIDE & Eclipse
+# ==========================================
+# IDE settings and metadata
+.metadata/
+.settings/
+*.launch
+
+# Build output directories
 Debug/
 Release/
 
-# Archivos compilados y binarios
+# ==========================================
+# C/C++ Build Artifacts
+# ==========================================
+# Object files
 *.o
+*.obj
+
+# Executables and binaries
 *.elf
 *.bin
 *.hex
 *.map
 *.su
 *.srec
-*.launch
+*.list
+*.lst
+*.out
 
-# Archivos de configuración locales del usuario (opcional)
-.metadata/
-.settings/
+# Libraries
+*.a
+*.so
+
+# ==========================================
+# OS specific
+# ==========================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ==========================================
+# Editor / Temp files
+# ==========================================
+*~
+*.bak
+*.swp
+*.tmp
