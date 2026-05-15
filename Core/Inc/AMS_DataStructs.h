@@ -67,7 +67,6 @@ typedef struct {
  *
  *        Coordinates are stored as integer micro-degrees (×1,000,000) to avoid
  *        floating-point partial-read races when copying through the Broker mutex.
- *        The GPS task converts to float internally (minmea) then back to int32.
  */
 typedef struct {
     /* Fix status */
