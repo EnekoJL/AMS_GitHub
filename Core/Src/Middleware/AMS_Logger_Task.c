@@ -7,8 +7,10 @@
  *  Two independent sub-features run inside the same FreeRTOS task:
  *
  *    1. SD-CARD LOGGER  (TASK_SD_CARD_ENABLE in AMS_task_config.h)
- *       Reads Vehicle_Data_t from the Broker every LOGGER_PRINT_PERIOD_MS and
- *       appends a CSV row to the open log file on the SD card.
+ *       Reads a full AMS_Data_t snapshot from the Broker every
+ *       LOGGER_SD_PERIOD_MS and appends one CSV row (vehicle, GPS,
+ *       telemetry, BMS, plus a fresh/stale flag per domain) to the open
+ *       log file on the SD card.
  *
  *    2. TERMINAL PRINTER  (FEATURE_LOGGER_PRINT_ENABLE in AMS_task_config.h)
  *       Reads ALL broker structs and pretty-prints them to the debug terminal
@@ -70,8 +72,18 @@ void vd_Logger_Init(void)
                                        s_current_log_file,
                                        sizeof(s_current_log_file))) {
             if (b_SD_Card_OpenLogFile(s_current_log_file)) {
+                /* One row = one full AMS_Data_t snapshot. Slow-changing
+                 * columns (e.g. BMS_*) repeat their last value between
+                 * updates — check the matching _FRESH column (1 = new
+                 * sample since last row, 0 = repeated/stale) before
+                 * treating a value as a fresh reading. */
                 const char *p_header =
-                    "TICK_MS,BAT_12V_MV,SUSP1_DMM,SUSP2_DMM,RPM\n";
+                    "TICK_MS,"
+                    "BAT_12V_MV,SUSP1_DMM,SUSP2_DMM,RPM,"
+                    "GPS_FIX,SATS,LAT_UDEG,LON_UDEG,SPEED_KMH_X1000,"
+                    "DIST_M,MAX_SPEED_KMH_X1000,AVG_SPEED_KMH_X1000,MAX_ACCEL_X1000,MAX_DECEL_X1000,"
+                    "BMS_PACK_MV,BMS_PACK_MA,BMS_MIN_CELL_MV,BMS_MAX_CELL_MV,BMS_MAX_TEMP_CC,BMS_SOC_X10,BMS_FAULTS,"
+                    "VEH_FRESH,ADC_FRESH,GPS_FRESH,BMS_FRESH,TELEM_FRESH\n";
                 if (b_SD_Card_WriteSync(p_header)) {
                     b_logger_ready = true;
                     printf("[LOGGER] SD ready. Logging to: %s\r\n",
@@ -282,6 +294,10 @@ void vd_Logger_TaskProcess(void)
     uint32_t ui32_last_print_tick_ms = 0U;
     /* Tracks the last seen Broker fault count, to detect new faults */
     uint32_t ui32_last_broker_fault_count = 0U;
+#if (TASK_SD_CARD_ENABLE == 1)
+    /* Tracks when we last wrote an SD-card CSV row */
+    uint32_t ui32_last_sd_write_tick_ms = 0U;
+#endif
 
     for (;;)
     {
@@ -303,32 +319,70 @@ void vd_Logger_TaskProcess(void)
 
         /* ----------------------------------------------------------------
          * SUB-FEATURE A: SD-card CSV logger
+         *
+         * Gated by its own LOGGER_SD_PERIOD_MS, independent of the 100ms
+         * task tick and of the terminal print period below — logging rate
+         * and dashboard refresh rate are different concerns.
          * ------------------------------------------------------------- */
 #if (TASK_SD_CARD_ENABLE == 1)
-        if (b_logger_ready)
+        if (b_logger_ready &&
+            (ui32_now_ms - ui32_last_sd_write_tick_ms) >= LOGGER_SD_PERIOD_MS)
         {
-            Vehicle_Data_t local_veh = {0};
-            char s_csv_row[128];
+            ui32_last_sd_write_tick_ms = ui32_now_ms;
 
-            if (b_Broker_Get_VehicleState(&local_veh))
+            /* One call, one snapshot of every domain — see AMS_Data_t. */
+            AMS_Data_t snap = {0};
+            b_Broker_Get_AllData(&snap);
+
+            char s_csv_row[400];
+            snprintf(s_csv_row, sizeof(s_csv_row),
+                     "%lu,"
+                     "%lu,%lu,%lu,%d,"
+                     "%u,%u,%ld,%ld,%ld,"
+                     "%lu,%ld,%ld,%ld,%ld,"
+                     "%lu,%ld,%u,%u,%d,%u,%lu,"
+                     "%u,%u,%u,%u,%u\n",
+                     (unsigned long)ui32_now_ms,
+                     /* Vehicle */
+                     (unsigned long)snap.vehicle.bateria_12v_mV,
+                     (unsigned long)snap.vehicle.recorrido_susp_1_dmm,
+                     (unsigned long)snap.vehicle.recorrido_susp_2_dmm,
+                     (int)snap.vehicle.inverter_rpm,
+                     /* GPS */
+                     (unsigned)snap.gps.b_gps_is_connected,
+                     (unsigned)snap.gps.ui8_satellites,
+                     (long)snap.gps.i32_latitude_udeg,
+                     (long)snap.gps.i32_longitude_udeg,
+                     (long)snap.gps.i32_vel_kmh_x1000,
+                     /* Telemetry */
+                     (unsigned long)snap.telemetry.ui32_total_distance_m,
+                     (long)snap.telemetry.i32_max_vel_kmh_x1000,
+                     (long)snap.telemetry.i32_avg_vel_kmh_x1000,
+                     (long)snap.telemetry.i32_max_accel_ms2_x1000,
+                     (long)snap.telemetry.i32_max_decel_ms2_x1000,
+                     /* BMS (placeholder — 0 until a BMS task exists) */
+                     (unsigned long)snap.bms.ui32_pack_voltage_mV,
+                     (long)snap.bms.i32_pack_current_mA,
+                     (unsigned)snap.bms.ui16_min_cell_mV,
+                     (unsigned)snap.bms.ui16_max_cell_mV,
+                     (int)snap.bms.i16_max_cell_temp_cC,
+                     (unsigned)snap.bms.soc_percent_x10,
+                     (unsigned long)snap.bms.ui32_fault_flags,
+                     /* Freshness — 1 = updated since last row, 0 = repeated/stale */
+                     (unsigned)snap.safety.b_vehicle_data_fresh,
+                     (unsigned)snap.safety.b_adc_data_fresh,
+                     (unsigned)snap.safety.b_gps_data_fresh,
+                     (unsigned)snap.safety.b_bms_data_fresh,
+                     (unsigned)snap.safety.b_telemetry_data_fresh);
+
+            if (b_SD_Card_WriteSync(s_csv_row))
             {
-                snprintf(s_csv_row, sizeof(s_csv_row),
-                         "%lu,%lu,%lu,%lu,%d\n",
-                         (unsigned long)ui32_now_ms,
-                         (unsigned long)local_veh.bateria_12v_mV,
-                         (unsigned long)local_veh.recorrido_susp_1_dmm,
-                         (unsigned long)local_veh.recorrido_susp_2_dmm,
-                         (int)local_veh.inverter_rpm);
-
-                if (b_SD_Card_WriteSync(s_csv_row))
-                {
-                    vd_LED_Manager_SetMode(LED_COLOR_GREEN, LED_PIN_BLINK);
-                }
-                else
-                {
-                    printf("[LOGGER] WARNING: SD write failed on %s\r\n",
-                           s_current_log_file);
-                }
+                vd_LED_Manager_SetMode(LED_COLOR_GREEN, LED_PIN_BLINK);
+            }
+            else
+            {
+                printf("[LOGGER] WARNING: SD write failed on %s\r\n",
+                       s_current_log_file);
             }
         }
 #endif /* TASK_SD_CARD_ENABLE */

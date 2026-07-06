@@ -20,6 +20,7 @@
  *                                      terminal with ANSI colour formatting.
  *                                      Independent of SD-card logging.
  *    - LOGGER_PRINT_PERIOD_MS        : Interval between terminal prints (default 1 Hz).
+ *    - LOGGER_SD_PERIOD_MS           : Interval between SD-card CSV rows.
  *
  * @author  Eneko Juanena
  * @date    25 de Marzo de 2026
@@ -72,5 +73,19 @@
  * Decrease for higher resolution (min recommended: 200 ms).
  */
 #define LOGGER_PRINT_PERIOD_MS  1000U
+
+/**
+ * @brief SD-card CSV row period in milliseconds.
+ *
+ * Every row is a full snapshot of AMS_Data_t (vehicle, gps, telemetry, bms,
+ * safety flags) — decoupled from LOGGER_PRINT_PERIOD_MS on purpose, since
+ * "how often should we persist a row to disk" and "how often should the
+ * terminal dashboard refresh" are different concerns.
+ *
+ * Slow-changing columns (e.g. BMS) will repeat their last value across
+ * several rows until their producer task updates them — check that
+ * column's _FRESH flag in the same row before trusting it as a new sample.
+ */
+#define LOGGER_SD_PERIOD_MS  100U
 
 #endif /* AMS_TASK_CONFIG_H_ */
