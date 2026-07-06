@@ -9,7 +9,9 @@
  *          CalculateVehicleData(): converts millivolts to physical units
  *          (battery voltage, suspension travel).
  *
- *          NO HAL or FreeRTOS calls allowed in this file.
+ *          NO HAL or FreeRTOS calls allowed in this file. Factory ROM
+ *          calibration values are passed in as parameters by the caller,
+ *          not read directly here — keeps this file pure and host-testable.
  * @author  Eneko Juanena
  * @date    6 de Marzo de 2026
  */
@@ -19,7 +21,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-void Algorithms_Sensors_ProcessVoltages(AMS_ADC_Data_t *p_adc_data) {
+void Algorithms_Sensors_ProcessVoltages(AMS_ADC_Data_t *p_adc_data,
+                                         uint16_t ui16_vrefint_cal,
+                                         uint16_t ui16_ts_cal1,
+                                         uint16_t ui16_ts_cal2) {
     if (p_adc_data == NULL) return;
 
     /* =====================================================================
@@ -32,10 +37,13 @@ void Algorithms_Sensors_ProcessVoltages(AMS_ADC_Data_t *p_adc_data) {
      * Formula (RM0386 §13.10):
      *   V_DDA_actual_mV = VREFINT_CAL_MV * VREFINT_CAL / VREFINT_DATA
      *
-     *   VREFINT_CAL  : factory 12-bit count stored in ROM at 3.3 V
+     *   VREFINT_CAL  : factory 12-bit count stored in ROM at 3.3 V — passed
+     *                  in by the caller (read once from AMS_VREFINT_CAL_ADDR).
+     *                  Kept out of this function so it stays a pure
+     *                  input->output algorithm with no hardware/ROM access,
+     *                  and can be unit-tested on a host without a real MCU.
      *   VREFINT_DATA : live averaged count from DMA scan (CH17, Rank 3)
      * ===================================================================== */
-    const uint16_t ui16_vrefint_cal  = *AMS_VREFINT_CAL_ADDR;
     const uint16_t ui16_vrefint_data = p_adc_data->ui16_vrefint_raw;
 
     uint32_t ui32_vdda_mV;
@@ -76,9 +84,11 @@ void Algorithms_Sensors_ProcessVoltages(AMS_ADC_Data_t *p_adc_data) {
      *
      * Result is in centi-degrees Celsius (x100). No floating point.
      *   e.g. i32_mcu_temp_cC = 2547 means 25.47 degC
+     *
+     *   ui16_ts_cal1 / ui16_ts_cal2 : factory ROM values — passed in by the
+     *   caller (read once from TS_CAL1_ADDR / TS_CAL2_ADDR), same reasoning
+     *   as ui16_vrefint_cal above.
      * ===================================================================== */
-    const uint16_t ui16_ts_cal1 = *TS_CAL1_ADDR;
-    const uint16_t ui16_ts_cal2 = *TS_CAL2_ADDR;
     const uint16_t ui16_ts_raw  = p_adc_data->ui16_temp_sensor_raw;
 
     /* Scale raw reading to the 3.3 V factory reference */

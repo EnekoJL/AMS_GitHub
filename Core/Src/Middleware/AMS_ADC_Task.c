@@ -67,8 +67,18 @@ void vd_ADC_Manager_TaskProcess(void)
         local_adc.adc2_ch1_filtrado    = shadow.adc2_ch1_raw;
         local_adc.adc2_ch2_filtrado    = shadow.adc2_ch2_raw;
 
+        /* Read factory ROM calibration once per cycle and pass it in —
+         * keeps Algorithms_Sensors_ProcessVoltages() a pure function with
+         * no hardware/ROM access of its own (host-testable). */
+        const uint16_t ui16_vrefint_cal = *AMS_VREFINT_CAL_ADDR;
+        const uint16_t ui16_ts_cal1     = *TS_CAL1_ADDR;
+        const uint16_t ui16_ts_cal2     = *TS_CAL2_ADDR;
+
         /* Convert raw counts → millivolts. */
-        Algorithms_Sensors_ProcessVoltages(&local_adc);
+        Algorithms_Sensors_ProcessVoltages(&local_adc,
+                                            ui16_vrefint_cal,
+                                            ui16_ts_cal1,
+                                            ui16_ts_cal2);
 
         /* Read the current vehicle state to avoid overwriting unrelated fields. */
         if (!b_Broker_Get_VehicleState(&local_veh)) {

@@ -1,0 +1,127 @@
+# =========================================================================
+#   Ceedling project config — host-side unit tests (Unity + CMock).
+#
+#   This runs entirely on your PC (gcc), separate from the STM32CubeIDE
+#   arm-none-eabi build. It never touches the target firmware build.
+#
+#   Usage:
+#     ceedling test:all      # run every test
+#     ceedling test:test_AMS_sensors   # run one test file
+#
+#   Scope so far: Core/Algorithms (pure C, no hardware/RTOS dependency).
+#   Broker/task-layer tests will need cmsis_os/HAL mocked via CMock —
+#   add those headers under :mocks below when that phase starts.
+# =========================================================================
+
+---
+:project:
+  :which_ceedling: gem
+  :ceedling_version: 1.0.1
+  :use_mocks: TRUE
+  :use_test_preprocessor: :mocks
+  :use_deep_preprocessor: :none
+  :use_backtrace: :simple
+  :use_decorators: :auto
+  :build_root: build
+  :test_file_prefix: test_
+  :default_tasks:
+    - test:all
+  :test_threads: 4
+  :compile_threads: 4
+  :release_build: FALSE
+
+:mixins:
+  :enabled: []
+  :load_paths: []
+
+:test_build:
+  :use_assembly: FALSE
+
+:plugins:
+  :load_paths: []
+  :enabled:
+    - module_generator
+    - report_tests_pretty_stdout
+
+:extension:
+  :executable: .out
+
+# Where Ceedling looks for source/test/include. Broad on purpose — Ceedling
+# only compiles what a given test's #include chain actually pulls in, not
+# everything under these paths.
+:paths:
+  :test:
+    - +:test/**
+    - -:test/support
+  :source:
+    - Core/Src/**
+  :include:
+    - test/vendor_stubs   # minimal cmsis_os.h stand-in — see file header comment. Must come before Core/Inc/**.
+    - Core/Inc/**
+  :support:
+    - test/support
+  :libraries: []
+
+:files:
+  :test: []
+  :source: []
+
+:defines:
+  :test:
+    - TEST
+  :release: []
+  :use_test_definition: FALSE
+
+:cmock:
+  :plugins:
+    - :ignore
+    - :ignore_arg
+    - :expect_any_args
+    - :return_thru_ptr
+    - :callback
+  :verbosity: 2
+  :when_no_prototypes: :warn
+  :skeleton_path: ''
+  :mock_prefix: 'mock_'
+  :mock_suffix: ''
+  :strippables: ['(?:__attribute__\s*\([ (]*.*?[ )]*\)+)']
+  :attributes:
+    - __ramfunc
+    - __irq
+    - __fiq
+    - register
+    - extern
+  :c_calling_conventions:
+    - __stdcall
+    - __cdecl
+    - __fastcall
+  :treat_externs: :exclude
+  :treat_inlines: :exclude
+  :treat_as:
+    uint8:    HEX8
+    uint16:   HEX16
+    uint32:   UINT32
+    int8:     INT8
+    bool:     UINT8
+  :memcmp_if_unknown: true
+  :when_ptr: :compare_data
+  :weak: ''
+  :enforce_strict_ordering: true
+  :fail_on_unexpected_calls: true
+  :callback_include_count: true
+  :callback_after_arg_check: false
+  :exclude_setjmp_h: false
+
+:unity:
+  :defines: []
+
+:environment: []
+
+:libraries:
+  :placement: :end
+  :flag: "-l${1}"
+  :path_flag: "-L ${1}"
+  :system: []
+  :test: []
+  :release: []
+...
