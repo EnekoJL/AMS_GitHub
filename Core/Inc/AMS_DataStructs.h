@@ -106,6 +106,67 @@ typedef struct {
 } AMS_Telemetry_Data_t;
 
 /**
+ * @brief Battery Management System snapshot (pack-level safety data).
+ *        PLACEHOLDER: no task populates this yet (no BMS driver/CAN parser
+ *        exists in this project as of this writing). Type is defined now so
+ *        the Broker's storage/API shape is settled before that task exists.
+ *        Fields below are typical BMS values — revise once the real BMS
+ *        interface (CAN IDs, fault bit meanings) is known.
+ */
+typedef struct {
+    uint32_t ui32_pack_voltage_mV;
+    int32_t  i32_pack_current_mA;    // signed: negative = discharging
+    uint16_t ui16_min_cell_mV;
+    uint16_t ui16_max_cell_mV;
+    uint8_t  ui8_min_cell_id;
+    uint8_t  ui8_max_cell_id;
+    int16_t  i16_max_cell_temp_cC;
+    uint16_t soc_percent_x10;
+    uint32_t ui32_fault_flags;        // bitfield, TBD once real BMS fault codes are known
+} AMS_BMS_Data_t;
+
+/**
+ * @brief Freshness/validity of each Broker data domain.
+ *
+ *        "Flag only" model: the Broker marks a domain stale when it hasn't
+ *        been updated within its allowed max-age window — it does NOT take
+ *        any corrective action itself (no forced shutdown, no overriding
+ *        other tasks). Each consuming task decides what a stale/invalid
+ *        flag means for it (log a warning, hold last value, refuse to act
+ *        on it, etc). See b_Broker_Get_SafetyFlags().
+ */
+typedef struct {
+    bool b_vehicle_data_fresh;
+    bool b_adc_data_fresh;
+    bool b_gps_data_fresh;
+    bool b_bms_data_fresh;
+    bool b_telemetry_data_fresh;
+} AMS_Safety_Flags_t;
+
+/**
+ * @brief Full snapshot of every Broker data domain, in one struct.
+ *
+ *        Convenience aggregate ONLY — the Broker still stores and locks
+ *        each domain independently (own mutex, own memcpy, per struct).
+ *        This type exists so:
+ *          1. A consumer (e.g. the dashboard printer) can fetch "everything"
+ *             in one call — see b_Broker_Get_AllData() — instead of one call
+ *             per struct.
+ *          2. There is one place in the codebase that names every domain
+ *             that exists, useful for onboarding new developers.
+ *        It does NOT introduce a single global mutex — concurrency is
+ *        unchanged from the per-domain locking already in the Broker.
+ */
+typedef struct {
+    Vehicle_Data_t          vehicle;
+    AMS_BMS_Data_t          bms;
+    AMS_ADC_Data_t          sensors;
+    GPS_Data_t              gps;
+    AMS_Telemetry_Data_t    telemetry;
+    AMS_Safety_Flags_t      safety;
+} AMS_Data_t;
+
+/**
  * @brief Datos persistentes del sistema (guardados en Flash interna).
  *        Cualquier campo aqui sobrevive a cortes de tension y reinicios.
  */

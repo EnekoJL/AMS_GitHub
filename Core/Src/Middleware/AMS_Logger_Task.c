@@ -280,10 +280,26 @@ void vd_Logger_TaskProcess(void)
 {
     /* Tracks when we last fired the terminal printer */
     uint32_t ui32_last_print_tick_ms = 0U;
+    /* Tracks the last seen Broker fault count, to detect new faults */
+    uint32_t ui32_last_broker_fault_count = 0U;
 
     for (;;)
     {
         uint32_t ui32_now_ms = HAL_GetTick();
+
+        /* ----------------------------------------------------------------
+         * Broker health check: a Get/Set that timed out means some task
+         * held a mutex too long. Runs unconditionally, independent of
+         * the SD/print feature flags below, so it always gets surfaced.
+         * ------------------------------------------------------------- */
+        uint32_t ui32_broker_faults = u32_Broker_GetFaultCount();
+        if (ui32_broker_faults != ui32_last_broker_fault_count)
+        {
+            ui32_last_broker_fault_count = ui32_broker_faults;
+            printf("[LOGGER] WARNING: DataBroker mutex timeout (total faults: %lu)\r\n",
+                   (unsigned long)ui32_broker_faults);
+            vd_LED_Manager_SetMode(LED_COLOR_RED, LED_PIN_BLINK);
+        }
 
         /* ----------------------------------------------------------------
          * SUB-FEATURE A: SD-card CSV logger

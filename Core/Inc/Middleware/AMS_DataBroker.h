@@ -18,6 +18,15 @@
  */
 void b_Broker_Init(void);
 
+/**
+ * @brief  Number of times a Broker Get/Set has failed to acquire its mutex
+ *         within BROKER_MUTEX_TIMEOUT_MS. Should stay 0 in normal operation.
+ *         A non-zero/increasing value means some task is holding a broker
+ *         mutex too long (bug) — surfaced by AMS_Logger_Task via the RED LED.
+ * @retval Total fault count since boot.
+ */
+uint32_t u32_Broker_GetFaultCount(void);
+
 /* --- Getters (Lectura Segura) --- */
 /**
  * @brief  Obtiene una copia segura de los datos físicos del vehículo.
@@ -93,5 +102,43 @@ bool b_Broker_Update_TelemetryData(const AMS_Telemetry_Data_t *p_new_data);
  * @retval true if successful.
  */
 bool b_Broker_Get_TelemetryData(AMS_Telemetry_Data_t *p_copy);
+
+/* ----- BMS Data (placeholder — see AMS_BMS_Data_t) ----- */
+/**
+ * @brief Writes a new BMS snapshot into the DataBroker.
+ * @param p_new_data  Pointer to the new AMS_BMS_Data_t to store.
+ * @retval true if successful.
+ */
+bool b_Broker_Update_BMSData(const AMS_BMS_Data_t *p_new_data);
+
+/**
+ * @brief Returns a safe copy of the latest BMS data.
+ * @param p_copy  Pointer to the AMS_BMS_Data_t that will receive the copy.
+ * @retval true if successful.
+ */
+bool b_Broker_Get_BMSData(AMS_BMS_Data_t *p_copy);
+
+/* ----- Safety Flags (freshness) ----- */
+/**
+ * @brief Computes and returns the current freshness of every data domain.
+ *        A domain is "fresh" if its last Update_* call happened within its
+ *        allowed max-age window (see BROKER_MAX_AGE_*_MS in the .c file).
+ *        Flag only — the Broker takes no corrective action on staleness,
+ *        it just reports it. Callers decide what to do.
+ * @param p_copy  Pointer to the AMS_Safety_Flags_t that will receive the result.
+ * @retval true if successful.
+ */
+bool b_Broker_Get_SafetyFlags(AMS_Safety_Flags_t *p_copy);
+
+/* ----- Full Snapshot ----- */
+/**
+ * @brief Convenience: fetches every domain (vehicle, bms, sensors, gps,
+ *        telemetry, safety flags) in one call. Internally calls each
+ *        individual Getter in turn — no new lock is introduced, so this
+ *        is not an atomic "all-or-nothing" snapshot across domains.
+ * @param p_copy  Pointer to the AMS_Data_t that will receive the copy.
+ * @retval true if every individual Getter succeeded.
+ */
+bool b_Broker_Get_AllData(AMS_Data_t *p_copy);
 
 #endif /* AMS_DATABROKER_H_ */
