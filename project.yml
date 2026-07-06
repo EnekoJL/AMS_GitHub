@@ -56,8 +56,9 @@
   :source:
     - Core/Src/**
   :include:
-    - test/vendor_stubs   # minimal cmsis_os.h stand-in — see file header comment. Must come before Core/Inc/**.
+    - test/vendor_stubs   # minimal cmsis_os.h/main.h stand-ins — see file header comments. Must come before Core/Inc/**.
     - Core/Inc/**
+    - Core/Src/**   # lets a test #include a .c file directly (see test_AMS_CAN_Task.c) to reach static functions without modifying the source
   :support:
     - test/support
   :libraries: []

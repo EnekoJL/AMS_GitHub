@@ -23,6 +23,7 @@
 #include "Middleware/AMS_DataBroker.h"
 #include "Middleware/minmea.h"
 #include "Drivers_Custom/AMS_gps_driver.h"
+#include "Algorithms/AMS_gps_algorithms.h"
 #include "AMS_DataStructs.h"
 #include "cmsis_os.h"
 #include <string.h>
@@ -188,35 +189,7 @@ void vd_GPS_Manager_TaskProcess(void)
                 case MINMEA_SENTENCE_RMC: {
                     struct minmea_sentence_rmc frame;
                     if (minmea_parse_rmc(&frame, line)) {
-                        gps_snapshot.b_gps_is_connected = frame.valid;
-
-                        if (frame.valid) {
-                            /* Convert to micro-degrees (×1,000,000) using purely integer arithmetic */
-                            if (frame.latitude.scale != 0) {
-                                int32_t lat_degrees = frame.latitude.value / (frame.latitude.scale * 100);
-                                int32_t lat_minutes = frame.latitude.value % (frame.latitude.scale * 100);
-                                gps_snapshot.i32_latitude_udeg = lat_degrees * 1000000 + (int32_t)(((int64_t)lat_minutes * 1000000) / (60 * frame.latitude.scale));
-                            }
-                            
-                            if (frame.longitude.scale != 0) {
-                                int32_t lon_degrees = frame.longitude.value / (frame.longitude.scale * 100);
-                                int32_t lon_minutes = frame.longitude.value % (frame.longitude.scale * 100);
-                                gps_snapshot.i32_longitude_udeg = lon_degrees * 1000000 + (int32_t)(((int64_t)lon_minutes * 1000000) / (60 * frame.longitude.scale));
-                            }
-
-                            /* Speed: knots → km/h → m/s (all integer ×1000) */
-                            gps_snapshot.i32_vel_knots_x1000 = minmea_rescale(&frame.speed, 1000);
-                            gps_snapshot.i32_vel_kmh_x1000   = (gps_snapshot.i32_vel_knots_x1000 * 1852) / 1000;
-                            gps_snapshot.i32_vel_ms_x1000    = (gps_snapshot.i32_vel_kmh_x1000 * 1000) / 3600;
-
-                            /* UTC time */
-                            gps_snapshot.ui8_hour   = (uint8_t)frame.time.hours;
-                            gps_snapshot.ui8_minute = (uint8_t)frame.time.minutes;
-                            gps_snapshot.ui8_second = (uint8_t)frame.time.seconds;
-
-                            gps_snapshot.ui32_last_fix_tick_ms = HAL_GetTick();
-                        }
-
+                        gps_snapshot = st_GPS_ApplyRmcFrame(gps_snapshot, &frame, HAL_GetTick());
                         b_Broker_Update_GPSData(&gps_snapshot);
                     }
                 } break;
@@ -224,8 +197,7 @@ void vd_GPS_Manager_TaskProcess(void)
                 case MINMEA_SENTENCE_GGA: {
                     struct minmea_sentence_gga frame;
                     if (minmea_parse_gga(&frame, line)) {
-                        gps_snapshot.ui8_fix_quality = (uint8_t)frame.fix_quality;
-                        gps_snapshot.ui8_satellites  = (uint8_t)frame.satellites_tracked;
+                        gps_snapshot = st_GPS_ApplyGgaFrame(gps_snapshot, &frame);
                         b_Broker_Update_GPSData(&gps_snapshot);
                     }
                 } break;
