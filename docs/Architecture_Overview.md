@@ -81,10 +81,10 @@ Every struct in the Broker has exactly **one writer task**. Any other task may r
 | `Vehicle_Data_t` | Physical vehicle state (battery, suspension) | `AMS_ADC_Task` | Logger | 300 ms |
 | `AMS_Powertrain_Data_t` | Inverter RPM (from CAN) | `AMS_CAN_Task` | Logger | 300 ms |
 | `AMS_ADC_Data_t` | Raw + converted ADC readings | `AMS_ADC_Task` | Logger | 300 ms |
-| `GPS_Data_t` | Parsed NMEA position/speed | `AMS_GPS_Task` | Data Calculator, Logger | 2000 ms |
-| `AMS_Telemetry_Data_t` | Derived GPS metrics (distance, max speed, accel) | `AMS_Data_Calculator_Task` | Logger | 300 ms |
+| `GPS_Data_t` | Parsed NMEA position/speed | `AMS_GPS_Task` | Algorithms Task, Logger | 2000 ms |
+| `AMS_Telemetry_Data_t` | Derived GPS metrics (distance, max speed, accel, session + lifetime) | `AMS_Algorithms_Task` | Logger | 300 ms |
 | `AMS_BMS_Data_t` | Battery pack safety data | *(none yet — placeholder, no BMS task exists)* | — | 500 ms |
-| `AMS_BatteryStats_Data_t` | Derived Ah in/out, thermal extremes, peak current — composes `AMS_ChargeStats_t`/`AMS_ThermalStats_t`/`AMS_CurrentStats_t`, each the output of one Algorithms module (`AMS_charge_algorithms.c`, `AMS_thermal_algorithms.c`, `AMS_current_algorithms.c`) | *(none yet — placeholder, same as `AMS_BMS_Data_t`; will be the future BMS task, folding all three per SPI cycle)* | — | 1500 ms |
+| `AMS_BatteryStats_Data_t` | Derived Ah in/out, thermal extremes, peak current — composes `AMS_ChargeStats_t`/`AMS_ThermalStats_t`/`AMS_CurrentStats_t`, each the output of one Algorithms module (`AMS_charge_algorithms.c`, `AMS_thermal_algorithms.c`, `AMS_current_algorithms.c`) | `AMS_Algorithms_Task` (current/charge sections; thermal not wired yet — see that task's README) | Logger | 1500 ms |
 | `AMS_Persistent_Config_t` | Flash-backed config (SOC, cycle count) | `AMS_Flash_Task` | Logger | n/a (see Flash Task doc) |
 
 **Every struct has exactly one writer today.** `Vehicle_Data_t` and
@@ -120,5 +120,5 @@ The tasks in this project generally follow one of two execution models:
   - This ensures maximum CPU efficiency and zero polling.
 
 * **Periodic Polling:**
-  - Tasks like **LED**, **Logger**, and **Data Calculator** wake up at fixed intervals using `osDelay()`.
+  - Tasks like **Logger** and **Algorithms** (which also drives the LED state machine — see its section 4) wake up at fixed intervals using `osDelay()`.
   - They check the latest state from the Broker and perform their operations (e.g., blinking an LED, saving a file to the SD card).

@@ -20,4 +20,4 @@ The `AMS_GPS_Task` manages the reception, buffering, and parsing of NMEA 0183 se
    * Speed is converted from Knots to km/h and m/s, strictly using integer arithmetic (scaled by 1000).
 3. **Broker Synchronization:**
    * After successfully parsing and converting a sentence, the task updates the `GPS_Data_t` struct inside the Data Broker.
-   * It also updates `ui32_last_fix_tick_ms`, which signals the Data Calculator task that fresh telemetry is available.
+   * It also updates `ui32_last_fix_tick_ms`, which signals `AMS_Algorithms_Task` that fresh telemetry is available.

@@ -93,21 +93,31 @@ pick this back up without re-deriving context.
     placeholder status as `AMS_BMS_Data_t`, waiting on the BMS task below.
   - Extended `AMS_Telemetry_Data_t`/`AMS_TelemetryAccumulator_t` with
     lifetime distance/max-speed/max-accel/max-decel alongside the existing
-    session fields (`vd_TelemetryCalc_SeedLifetime()`), fully wired through
-    the Data Calculator task, Broker, and Logger dashboard/CSV — this one
-    isn't a placeholder, it's live today (lifetime == session until flash
-    seeding exists, see below).
-  - **Deliberately NOT done this round** (see open items #2 and #3 below):
-    wiring the folds into a real BMS task (none exists — no SPI driver, no
-    hardware chosen yet), and seeding any lifetime baseline from flash
-    (`AMS_Persistent_Config_t`'s schema for historic stats isn't decided).
-    Every seed function (`vd_ChargeCalc_SeedLifetime`,
-    `vd_CurrentCalc_SeedLifetime`, `vd_TelemetryCalc_SeedLifetime`) exists
-    and is tested in isolation, just not called from production code yet —
-    grep for "TODO" in `AMS_Data_Calculator_Task.c` and the three new
-    Algorithms headers for the exact plug-in points.
+    session fields (`vd_TelemetryCalc_SeedLifetime()`) — live today
+    (lifetime == session until flash seeding exists, see below).
+  - **Deliberately NOT done this round:** seeding any lifetime baseline
+    from flash (`AMS_Persistent_Config_t`'s schema for historic stats isn't
+    decided — see item #3 below). Every seed function
+    (`vd_ChargeCalc_SeedLifetime`, `vd_CurrentCalc_SeedLifetime`,
+    `vd_TelemetryCalc_SeedLifetime`) exists and is tested in isolation,
+    just not called from production code yet — grep for "TODO" in
+    `AMS_Algorithms_Task.c` and the three new Algorithms headers for the
+    exact plug-in points.
   - Test suite: 70/70 passing (20 new: 6 charge, 4 thermal, 5 current, 4
     telemetry-lifetime, 1 battery-stats Broker roundtrip).
+- Consolidated `AMS_Data_Calculator_Task` (GPS telemetry only) into a new
+  `AMS_Algorithms_Task` — one task, four clearly separated, independent
+  sections: Current, Charge/SOC, Telemetry, LED (see
+  `docs/Tasks/AMS_Algorithms_Task/README.md`). Current and Charge/SOC now
+  fold from the Broker's latest `AMS_BMS_Data_t.i32_pack_current_mA`
+  directly in this task, rather than waiting for a future BMS task's own
+  loop as originally proposed — accepted tradeoff, documented in the new
+  task's file header and README: this only sees the Broker's latest
+  current sample once per 10ms poll, so if a future BMS task ends up
+  sampling current faster than that, transients between polls won't be
+  integrated. Revisit if that turns out to matter once real BMS hardware
+  exists. Thermal is still not wired anywhere (see item #2 below — needs a
+  per-cell array `AMS_BMS_Data_t` doesn't have yet).
 
 ## Open items, in recommended order
 
@@ -127,15 +137,15 @@ This is a hardware/product decision (what BMS chip, CAN IDs or SPI/UART
 interface, what fault bits actually mean) more than a pure coding task —
 needs your input on the real BMS interface before it can be built.
 
-Once it exists, its loop is also where the three battery-stats folds plug
-in (`b_ChargeCalc_Fold`, `b_ThermalCalc_Fold`, `b_CurrentCalc_Fold` from
-`Algorithms/AMS_charge_algorithms.c` / `AMS_thermal_algorithms.c` /
-`AMS_current_algorithms.c`) — coulomb counting needs every current sample
-with an exact dt, which only the task reading the SPI chain has; a
-separate task polling the Broker's latest-value-only snapshot would
-integrate garbage. See the worked example in this session's chat log (or
-just copy the shape of `vd_Calculator_Manager_TaskProcess()`) once the
-driver exists.
+Current and Charge/SOC (`b_CurrentCalc_Fold`, `b_ChargeCalc_Fold`) already
+fold inside `AMS_Algorithms_Task` today, reading the Broker's latest
+`AMS_BMS_Data_t.i32_pack_current_mA` — so once this task writes real
+current samples, those two just start producing real numbers, no further
+wiring needed. Thermal (`b_ThermalCalc_Fold`) is the one still unwired: it
+needs a per-cell temperature array, and `AMS_BMS_Data_t` only has one
+aggregate `i16_max_cell_temp_cC` field today — extend the struct with a
+real per-cell array (sized to the actual chosen hardware's cell count) and
+add a fifth section to `AMS_Algorithms_Task`, same shape as Current/Charge.
 
 ### 3. Flash schema for historic/lifetime stats
 

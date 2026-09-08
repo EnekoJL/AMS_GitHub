@@ -3,7 +3,7 @@
  * @brief   Domain-layer algorithm for turning successive GPS fixes into
  *          running telemetry (odometer, max/avg speed, max accel/decel).
  *
- *          Extracted out of AMS_Data_Calculator_Task.c's task loop so this
+ *          Extracted out of AMS_Algorithms_Task.c's task loop so this
  *          math can be unit-tested directly (a `for(;;)` task loop that
  *          blocks on osDelay() can't be called from a host test). The
  *          accumulator state that used to live in file-scope statics is

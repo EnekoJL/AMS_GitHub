@@ -62,7 +62,7 @@ static volatile bool s_battery_stats_has_data = false;
 #define BROKER_MAX_AGE_VEHICLE_MS     300U   /* fed by ADC, event-driven, DMA-triggered */
 #define BROKER_MAX_AGE_ADC_MS         300U   /* event-driven, DMA-triggered          */
 #define BROKER_MAX_AGE_GPS_MS        2000U   /* NMEA bursts, ~1 Hz typical            */
-#define BROKER_MAX_AGE_TELEMETRY_MS   300U   /* AMS_Data_Calculator_Task, 10ms poll   */
+#define BROKER_MAX_AGE_TELEMETRY_MS   300U   /* AMS_Algorithms_Task, 10ms poll        */
 #define BROKER_MAX_AGE_BMS_MS         500U   /* placeholder: no producer task yet     */
 #define BROKER_MAX_AGE_POWERTRAIN_MS  300U   /* CAN, 20ms poll of RX queue            */
 #define BROKER_MAX_AGE_BATTERY_STATS_MS 1500U /* derived from BMS; no producer yet    */

@@ -32,7 +32,7 @@
 #include "Middleware/AMS_CAN_Task.h"
 #include "Middleware/AMS_Flash_Task.h"
 #include "Middleware/AMS_GPS_Task.h"
-#include "Middleware/AMS_Data_Calculator_Task.h"
+#include "Middleware/AMS_Algorithms_Task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -1079,8 +1079,8 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-	vd_Calculator_Task_Init();
-	vd_Calculator_Manager_TaskProcess();
+	vd_Algorithms_Task_Init();
+	vd_Algorithms_Manager_TaskProcess();
   /* USER CODE END 5 */
 }
 

@@ -106,7 +106,7 @@ typedef struct {
 
 /**
  * @brief Telemetry calculated from GPS data.
- *        Populated by AMS_Data_Calculator_Task.
+ *        Populated by AMS_Algorithms_Task.
  */
 typedef struct {
     /* --- Session (since boot) --- */
@@ -144,9 +144,11 @@ typedef struct {
  *        isn't defined yet (see the TODO there) — until it is, lifetime ==
  *        session on every boot, which is a safe default, not a bug.
  *
- *        PLACEHOLDER like AMS_BMS_Data_t: no producer task exists yet (no
- *        BMS driver/task built). Type is defined now so the Broker's
- *        storage/API shape is settled before that task exists.
+ *        Written by AMS_Algorithms_Task (current/charge sections — see
+ *        that file's header). Effectively still a placeholder in practice:
+ *        its only input, AMS_BMS_Data_t.i32_pack_current_mA, is itself a
+ *        placeholder with no producer (no BMS driver/task built yet), so
+ *        this folds zeros until that exists.
  */
 typedef struct {
     uint32_t ui32_session_discharged_mAh;

@@ -1,7 +1,7 @@
 /**
  * @file    AMS_telemetry_algorithms.c
  * @brief   See AMS_telemetry_algorithms.h. Math moved here verbatim from
- *          AMS_Data_Calculator_Task.c's vd_Calculator_Manager_TaskProcess()
+ *          AMS_Algorithms_Task.c's vd_Algorithms_Manager_TaskProcess()
  *          — behaviour is unchanged, only the file-scope statics became an
  *          explicit AMS_TelemetryAccumulator_t passed in by the caller.
  */

@@ -57,7 +57,7 @@ logic that's been extracted out of them. Concretely still untested:
 `vd_CAN_Manager_TaskProcess()`'s queue-drain + button-TX loop,
 `vd_GPS_Manager_TaskProcess()`'s queue-drain + multi-sentence-split loop,
 `AMS_ADC_Task.c`'s ISR/shadow-buffer handling, and
-`AMS_Data_Calculator_Task.c`'s/`AMS_Logger_Task.c`'s outer `for(;;)` bodies.
+`AMS_Algorithms_Task.c`'s/`AMS_Logger_Task.c`'s outer `for(;;)` bodies.
 These all block forever on `osMessageQueueGet`/`osDelay` inside an infinite
 loop with no way to run "one iteration" and get control back — the same
 reason GPS/telemetry math used to be untestable until it was pulled out into
