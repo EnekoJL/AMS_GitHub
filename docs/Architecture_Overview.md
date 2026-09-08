@@ -65,7 +65,7 @@ int32_t  speed    = prototype_1.gps.i32_vel_kmh_x1000;
 bool     gps_ok   = prototype_1.safety.b_gps_data_fresh;   // check before trusting stale data
 ```
 
-Field names on `AMS_Data_t` are: `vehicle`, `bms`, `sensors`, `gps`, `telemetry`, `safety` — check `AMS_DataStructs.h` for what's inside each one before guessing a field name (e.g. `Vehicle_Data_t` has no `speed` field; speed lives in `gps.i32_vel_kmh_x1000`).
+Field names on `AMS_Data_t` are: `vehicle`, `bms`, `sensors`, `gps`, `telemetry`, `powertrain`, `safety` — check `AMS_DataStructs.h` for what's inside each one before guessing a field name (e.g. `Vehicle_Data_t` has no `speed` field; speed lives in `gps.i32_vel_kmh_x1000`, and RPM lives in `powertrain.inverter_rpm`, not `vehicle`).
 
 Two things to know:
 
@@ -78,20 +78,30 @@ Every struct in the Broker has exactly **one writer task**. Any other task may r
 
 | Struct | Domain | Writer (only this task may call `Update_*`) | Typical readers | Max age before "stale" |
 |---|---|---|---|---|
-| `Vehicle_Data_t` | Physical vehicle state | `AMS_ADC_Task` (battery/suspension), `AMS_CAN_Task` (RPM) | Logger, LED | 300 ms |
+| `Vehicle_Data_t` | Physical vehicle state (battery, suspension) | `AMS_ADC_Task` | Logger | 300 ms |
+| `AMS_Powertrain_Data_t` | Inverter RPM (from CAN) | `AMS_CAN_Task` | Logger | 300 ms |
 | `AMS_ADC_Data_t` | Raw + converted ADC readings | `AMS_ADC_Task` | Logger | 300 ms |
 | `GPS_Data_t` | Parsed NMEA position/speed | `AMS_GPS_Task` | Data Calculator, Logger | 2000 ms |
 | `AMS_Telemetry_Data_t` | Derived GPS metrics (distance, max speed, accel) | `AMS_Data_Calculator_Task` | Logger | 300 ms |
 | `AMS_BMS_Data_t` | Battery pack safety data | *(none yet — placeholder, no BMS task exists)* | — | 500 ms |
 | `AMS_Persistent_Config_t` | Flash-backed config (SOC, cycle count) | `AMS_Flash_Task` | Logger | n/a (see Flash Task doc) |
 
-**Note:** `Vehicle_Data_t` currently has two writers (ADC and CAN each update different fields of the same struct). This is a known exception to the one-writer rule — both tasks do a full read-modify-write cycle under the same mutex, so it's *safe*, but it means two people can now write to the same struct without an obvious single owner to ask. Be careful adding a third writer here; consider splitting the struct by domain if that happens.
+**Every struct has exactly one writer today.** `Vehicle_Data_t` and
+`AMS_Powertrain_Data_t` used to be one struct (`Vehicle_Data_t` with an
+`inverter_rpm` field) written by both `AMS_ADC_Task` and `AMS_CAN_Task`. That
+was a **real bug**, not a safe exception: the mutex is released *between*
+a task's Get and its matching Update (see the four-step pattern in Section 3),
+so a CAN write landing in that window while ADC held its local copy would be
+silently overwritten and lost on ADC's write-back. Splitting `inverter_rpm`
+into its own struct/mutex (`AMS_Powertrain_Data_t`) removed the second writer
+entirely instead of trying to synchronize it — if you're ever tempted to add
+a second writer to an existing struct, split the struct instead.
 
 ### Safety flags (freshness)
 
 `b_Broker_Get_SafetyFlags()` returns an `AMS_Safety_Flags_t` — one `fresh`/`stale` bool per domain above, computed by comparing each domain's last-write timestamp against its "max age" column. **This is flag-only**: the Broker does not shut anything down, override a task, or take any action when a domain goes stale — it only reports it. Each consuming task decides what a stale flag means for it (log a warning, hold last known value, refuse to act, etc). `AMS_BMS_Data_t` will always read stale until a producer task exists and starts calling `b_Broker_Update_BMSData()`.
 
-`b_Broker_Get_AllData()` fetches every domain (vehicle, bms, sensors, gps, telemetry, safety) in one call, as an `AMS_Data_t`. It does **not** introduce a single global lock — internally it just calls each individual Getter in sequence, so it is not an atomic all-or-nothing snapshot across domains.
+`b_Broker_Get_AllData()` fetches every domain (vehicle, bms, sensors, gps, telemetry, powertrain, safety) in one call, as an `AMS_Data_t`. It does **not** introduce a single global lock — internally it just calls each individual Getter in sequence, so it is not an atomic all-or-nothing snapshot across domains.
 
 ### Mutex-ordering rule
 

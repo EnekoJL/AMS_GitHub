@@ -1,16 +1,23 @@
 /**
  * @file    AMS_GPS_Task.c
- * @brief   RTOS Task for GPS NMEA reception and parsing (USART6, 115200 baud, DMA).
+ * @brief   RTOS Task for GPS NMEA reception and parsing (115200 baud, idle-line).
+ *
+ *          Bound UART is passed into vd_GPS_Task_Init() from main.c — see
+ *          the comment at that call site. Currently USART3 (bench test,
+ *          NMEA fed over the ST-LINK USB/VCP from a PC); production on the
+ *          bike is USART6. Both work unchanged here — see AMS_gps_driver.c
+ *          for how the driver picks DMA vs interrupt reception per UART.
  *
  * Architecture (ISR → Queue → Task → Broker):
  * ─────────────────────────────────────────────
- *  1. Driver arms HAL_UARTEx_ReceiveToIdle_DMA() during vd_GPS_Task_Init().
- *  2. STM32 hardware writes incoming GPS bytes into the driver's DMA buffer.
+ *  1. Driver arms reception (DMA or IT, depending on the UART) during
+ *     vd_GPS_Task_Init().
+ *  2. STM32 hardware writes incoming GPS bytes into the driver's buffer.
  *  3. When the RX line goes idle (end of NMEA sentence), HAL fires
  *     HAL_UARTEx_RxEventCallback() in ISR context.
  *  4. The callback calls vd_GPS_RxQueue_PostFromISR() → copies the sentence
  *     into a GPS_NmeaPacket_t and posts it to the FreeRTOS queue (timeout=0).
- *  5. The callback re-arms the DMA for the next sentence.
+ *  5. The callback re-arms reception for the next sentence.
  *  6. vd_GPS_Manager_TaskProcess() wakes, drains the queue, parses with minmea,
  *     and calls b_Broker_Update_GPSData().
  *
@@ -120,10 +127,13 @@ void vd_GPS_Task_Init(UART_HandleTypeDef *phuart)
         HAL_NVIC_EnableIRQ(USART6_IRQn);
     }
 
-    /* 3. Arm the first DMA reception */
+    /* 3. Arm the first reception (DMA or IT — see AMS_gps_driver.c) */
     vd_AMS_GPS_StartReceive();
 
-    printf("[GPS] Task initialized on USART @ 115200 baud\r\n");
+    printf("[GPS] Task initialized on %s @ 115200 baud (%s)\r\n",
+           (phuart->Instance == USART3) ? "USART3" :
+           (phuart->Instance == USART6) ? "USART6" : "USART?",
+           (phuart->hdmarx != NULL) ? "DMA" : "IT");
 }
 
 void vd_GPS_RxQueue_PostFromISR(const uint8_t *p_data, uint16_t ui16_size)
@@ -148,10 +158,14 @@ void vd_GPS_RxQueue_PostFromISR(const uint8_t *p_data, uint16_t ui16_size)
 void vd_GPS_Manager_TaskProcess(void)
 {
     GPS_NmeaPacket_t packet;
-    GPS_Data_t       gps_snapshot;
+    GPS_Data_t       gps_snapshot = {0};
 
-    /* Read the current Broker state so partial-sentence updates are additive */
-    b_Broker_Get_GPSData(&gps_snapshot);
+    /* Read the current Broker state so partial-sentence updates are additive.
+     * If this fails (mutex timeout), gps_snapshot stays zeroed rather than
+     * carrying stack garbage into the first Broker write below. */
+    if (!b_Broker_Get_GPSData(&gps_snapshot)) {
+        printf("[GPS] WARNING: initial Broker read failed, starting from zeroed state\r\n");
+    }
 
     for (;;) {
         /* Block until a sentence arrives or timeout after 500 ms */

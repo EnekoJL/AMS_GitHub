@@ -31,6 +31,12 @@
  *          DO NOT also add TEST_SOURCE_FILE("Middleware/AMS_CAN_Task.c")
  *          here — that would compile+link the real file a second time,
  *          causing duplicate-symbol link errors.
+ *
+ *          parse_inverter_status() writes to AMS_Powertrain_Data_t (its own
+ *          Broker domain — see AMS_DataStructs.h), not Vehicle_Data_t. The
+ *          whole domain is exactly the one RPM value carried by this CAN
+ *          frame, so the function constructs and stores it directly —
+ *          no Get-before-Set needed (unlike a partial-field update).
  */
 
 #include "unity.h"
@@ -56,19 +62,8 @@ void test_parse_inverter_status_positive_rpm(void)
     pkt.data[0] = 0xE8; /* LSB */
     pkt.data[1] = 0x03; /* MSB -> 0x03E8 = 1000 (positive: MSB top bit clear) */
 
-    Vehicle_Data_t current = {0};
-    current.bateria_12v_mV       = 12500;
-    current.recorrido_susp_1_dmm = 100;
-    current.recorrido_susp_2_dmm = 50;
-    current.inverter_rpm         = 0;
-
-    b_Broker_Get_VehicleState_ExpectAndReturn(NULL, true);
-    b_Broker_Get_VehicleState_IgnoreArg_p_copy();
-    b_Broker_Get_VehicleState_ReturnThruPtr_p_copy(&current);
-
-    Vehicle_Data_t expected = current;
-    expected.inverter_rpm = 1000;
-    b_Broker_Update_VehicleState_ExpectAndReturn(&expected, true);
+    AMS_Powertrain_Data_t expected = { .inverter_rpm = 1000 };
+    b_Broker_Update_PowertrainData_ExpectAndReturn(&expected, true);
 
     parse_inverter_status(&pkt);
 }
@@ -80,16 +75,8 @@ void test_parse_inverter_status_negative_rpm(void)
     pkt.data[0] = 0x18; /* LSB */
     pkt.data[1] = 0xFC; /* MSB -> 0xFC18 = -1000 (two's complement, MSB top bit set) */
 
-    Vehicle_Data_t current = {0};
-    current.inverter_rpm = 500; /* previous value — must be overwritten, not accumulated */
-
-    b_Broker_Get_VehicleState_ExpectAndReturn(NULL, true);
-    b_Broker_Get_VehicleState_IgnoreArg_p_copy();
-    b_Broker_Get_VehicleState_ReturnThruPtr_p_copy(&current);
-
-    Vehicle_Data_t expected = current;
-    expected.inverter_rpm = -1000;
-    b_Broker_Update_VehicleState_ExpectAndReturn(&expected, true);
+    AMS_Powertrain_Data_t expected = { .inverter_rpm = -1000 };
+    b_Broker_Update_PowertrainData_ExpectAndReturn(&expected, true);
 
     parse_inverter_status(&pkt);
 }
@@ -101,16 +88,25 @@ void test_parse_inverter_status_zero_rpm(void)
     pkt.data[0] = 0x00;
     pkt.data[1] = 0x00;
 
-    Vehicle_Data_t current = {0};
-    current.inverter_rpm = 777;
+    AMS_Powertrain_Data_t expected = { .inverter_rpm = 0 };
+    b_Broker_Update_PowertrainData_ExpectAndReturn(&expected, true);
 
-    b_Broker_Get_VehicleState_ExpectAndReturn(NULL, true);
-    b_Broker_Get_VehicleState_IgnoreArg_p_copy();
-    b_Broker_Get_VehicleState_ReturnThruPtr_p_copy(&current);
+    parse_inverter_status(&pkt);
+}
 
-    Vehicle_Data_t expected = current;
-    expected.inverter_rpm = 0;
-    b_Broker_Update_VehicleState_ExpectAndReturn(&expected, true);
+/* =========================================================================
+ * A Broker write failure (e.g. mutex timeout) must not crash — and since
+ * the RPM is dropped, nothing further is expected (no retry, no fallback).
+ * ========================================================================= */
+void test_parse_inverter_status_broker_write_failure_does_not_crash(void)
+{
+    CAN_RxPacket_t pkt = {0};
+    pkt.std_id  = 0x181;
+    pkt.data[0] = 0xE8;
+    pkt.data[1] = 0x03;
+
+    AMS_Powertrain_Data_t expected = { .inverter_rpm = 1000 };
+    b_Broker_Update_PowertrainData_ExpectAndReturn(&expected, false);
 
     parse_inverter_status(&pkt);
 }

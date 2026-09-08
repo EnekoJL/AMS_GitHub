@@ -58,8 +58,19 @@ typedef struct {
     uint32_t bateria_12v_mV;       // Battery voltage in millivolts (e.g. 12500 = 12.5 V)
     uint32_t recorrido_susp_1_dmm; // Suspension travel in tenths of mm (e.g. 1452 = 145.2 mm)
     uint32_t recorrido_susp_2_dmm; // Suspension travel in tenths of mm (e.g. 485 = 48.5 mm)
-    int16_t  inverter_rpm;         // Motor RPM received from Inverter via CAN
 } Vehicle_Data_t;
+
+/**
+ * @brief Powertrain data received from the Inverter via CAN.
+ *        Split out from Vehicle_Data_t so it has its own single writer
+ *        (AMS_CAN_Task) — see Architecture_Overview.md's one-writer-per-struct
+ *        rule. Previously inverter_rpm lived inside Vehicle_Data_t, which also
+ *        has ADC as a writer; a CAN write landing between ADC's read and
+ *        write-back could get silently discarded (lost-update race).
+ */
+typedef struct {
+    int16_t  inverter_rpm;         // Motor RPM received from Inverter via CAN
+} AMS_Powertrain_Data_t;
 
 /**
  * @brief GPS data parsed from NMEA sentences (USART6, 115200 baud, DMA idle-line).
@@ -141,6 +152,7 @@ typedef struct {
     bool b_gps_data_fresh;
     bool b_bms_data_fresh;
     bool b_telemetry_data_fresh;
+    bool b_powertrain_data_fresh;
 } AMS_Safety_Flags_t;
 
 /**
@@ -163,6 +175,7 @@ typedef struct {
     AMS_ADC_Data_t          sensors;
     GPS_Data_t              gps;
     AMS_Telemetry_Data_t    telemetry;
+    AMS_Powertrain_Data_t   powertrain;
     AMS_Safety_Flags_t      safety;
 } AMS_Data_t;
 

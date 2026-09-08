@@ -83,7 +83,7 @@ void vd_Logger_Init(void)
                     "GPS_FIX,SATS,LAT_UDEG,LON_UDEG,SPEED_KMH_X1000,"
                     "DIST_M,MAX_SPEED_KMH_X1000,AVG_SPEED_KMH_X1000,MAX_ACCEL_X1000,MAX_DECEL_X1000,"
                     "BMS_PACK_MV,BMS_PACK_MA,BMS_MIN_CELL_MV,BMS_MAX_CELL_MV,BMS_MAX_TEMP_CC,BMS_SOC_X10,BMS_FAULTS,"
-                    "VEH_FRESH,ADC_FRESH,GPS_FRESH,BMS_FRESH,TELEM_FRESH\n";
+                    "VEH_FRESH,ADC_FRESH,GPS_FRESH,BMS_FRESH,TELEM_FRESH,RPM_FRESH\n";
                 if (b_SD_Card_WriteSync(p_header)) {
                     b_logger_ready = true;
                     printf("[LOGGER] SD ready. Logging to: %s\r\n",
@@ -116,12 +116,14 @@ void vd_Logger_PrintBrokerData(void)
     GPS_Data_t              gps         = {0};
     AMS_Telemetry_Data_t    telem       = {0};
     AMS_Persistent_Config_t persist     = {0};
+    AMS_Powertrain_Data_t   powertrain  = {0};
 
     bool b_adc_ok     = b_Broker_Get_ADCData(&adc);
     bool b_veh_ok     = b_Broker_Get_VehicleState(&veh);
     bool b_gps_ok     = b_Broker_Get_GPSData(&gps);
     bool b_telem_ok   = b_Broker_Get_TelemetryData(&telem);
     bool b_persist_ok = b_Broker_Get_PersistentConfig(&persist);
+    bool b_pt_ok      = b_Broker_Get_PowertrainData(&powertrain);
 
     /* ------------------------------------------------------------------ */
     /* Top banner                                                           */
@@ -181,7 +183,13 @@ void vd_Logger_PrintBrokerData(void)
                   (unsigned long)veh.recorrido_susp_2_dmm,
                   (unsigned long)(veh.recorrido_susp_2_dmm / 10u),
                   (unsigned long)(veh.recorrido_susp_2_dmm % 10u));
-        PRINT_ROW("Inverter RPM:",     "%6d RPM",  (int)veh.inverter_rpm);
+    }
+
+    /* Powertrain (own domain/mutex — see AMS_Powertrain_Data_t) */
+    if (!b_pt_ok) {
+        printf(COL_WARN "    Powertrain: Broker read FAILED\r\n" ANSI_RESET);
+    } else {
+        PRINT_ROW("Inverter RPM:",     "%6d RPM",  (int)powertrain.inverter_rpm);
     }
 
     /* ------------------------------------------------------------------ */
@@ -332,7 +340,15 @@ void vd_Logger_TaskProcess(void)
 
             /* One call, one snapshot of every domain — see AMS_Data_t. */
             AMS_Data_t snap = {0};
-            b_Broker_Get_AllData(&snap);
+            if (!b_Broker_Get_AllData(&snap)) {
+                /* At least one domain's mutex timed out — snap keeps whatever
+                 * individual Getters DID succeed, and {0} for the rest, which
+                 * looks identical to a real zero reading in the row below.
+                 * The per-domain FRESH columns are the only way to tell a
+                 * real zero from "broker read failed" for domains that
+                 * participate in freshness tracking. */
+                printf("[LOGGER] WARNING: partial Broker snapshot (one or more domains failed)\r\n");
+            }
 
             char s_csv_row[400];
             snprintf(s_csv_row, sizeof(s_csv_row),
@@ -341,13 +357,13 @@ void vd_Logger_TaskProcess(void)
                      "%u,%u,%ld,%ld,%ld,"
                      "%lu,%ld,%ld,%ld,%ld,"
                      "%lu,%ld,%u,%u,%d,%u,%lu,"
-                     "%u,%u,%u,%u,%u\n",
+                     "%u,%u,%u,%u,%u,%u\n",
                      (unsigned long)ui32_now_ms,
                      /* Vehicle */
                      (unsigned long)snap.vehicle.bateria_12v_mV,
                      (unsigned long)snap.vehicle.recorrido_susp_1_dmm,
                      (unsigned long)snap.vehicle.recorrido_susp_2_dmm,
-                     (int)snap.vehicle.inverter_rpm,
+                     (int)snap.powertrain.inverter_rpm,
                      /* GPS */
                      (unsigned)snap.gps.b_gps_is_connected,
                      (unsigned)snap.gps.ui8_satellites,
@@ -373,7 +389,8 @@ void vd_Logger_TaskProcess(void)
                      (unsigned)snap.safety.b_adc_data_fresh,
                      (unsigned)snap.safety.b_gps_data_fresh,
                      (unsigned)snap.safety.b_bms_data_fresh,
-                     (unsigned)snap.safety.b_telemetry_data_fresh);
+                     (unsigned)snap.safety.b_telemetry_data_fresh,
+                     (unsigned)snap.safety.b_powertrain_data_fresh);
 
             if (b_SD_Card_WriteSync(s_csv_row))
             {

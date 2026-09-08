@@ -102,11 +102,14 @@ static void parse_inverter_status(const CAN_RxPacket_t *pkt) {
     /* El Inversor manda RPM en Bytes [0] y [1] (Little Endian con signo) */
     int16_t rpm = (int16_t)((pkt->data[1] << 8) | pkt->data[0]);
 
-    /* Extraer el VehicleState actual del Broker, actualizar RPM, subir */
-    Vehicle_Data_t veh;
-    b_Broker_Get_VehicleState(&veh);
-    veh.inverter_rpm = rpm;
-    b_Broker_Update_VehicleState(&veh);
+    /* AMS_Powertrain_Data_t has exactly one field, and this frame IS the
+     * whole domain — no read-modify-write needed (unlike Vehicle_Data_t,
+     * where a partial update must preserve fields written by other tasks). */
+    AMS_Powertrain_Data_t pt = { .inverter_rpm = rpm };
+    if (!b_Broker_Update_PowertrainData(&pt)) {
+        printf("[CAN RX] WARNING: Broker write failed, RPM dropped\r\n");
+        return;
+    }
 
     printf("[CAN RX] 0x%03lX → RPM: %d\r\n", pkt->std_id, rpm);
 }

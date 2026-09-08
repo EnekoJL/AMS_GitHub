@@ -1,6 +1,6 @@
 # Next Steps
 
-Last updated: 2026-07-06, branch `feat/Tasks_FreeRTOS` (commit `f2adb07`).
+Last updated: 2026-09-08, branch `claude_code`.
 
 Snapshot of where things stand and what's queued up next, so a session can
 pick this back up without re-deriving context.
@@ -34,6 +34,47 @@ pick this back up without re-deriving context.
   `Flash_Memory_Start()`'s task body, so `AMS_Persistent_Config_t` is loaded
   before any other task can read it. Doc and code now agree
   (`AMS_Flash_Task/README.md`, `AMS_Flash_Task.h`).
+- Architecture audit (Opus-model agent review of every Broker/task/Algorithm
+  source file against the docs) confirmed the shared-state Broker pattern is
+  the right call for this workload — recommended against pub/sub, per-pair
+  queues, or a real embedded DB. Fixed everything the audit found:
+  - **`Vehicle_Data_t` lost-update race** (real bug, not the "safe" exception
+    the doc claimed): split `inverter_rpm` into its own domain/mutex,
+    `AMS_Powertrain_Data_t`, written only by `AMS_CAN_Task`. Restores
+    one-writer-per-struct with no exceptions.
+  - **GPS on USART3 would hard-fault**: `AMS_gps_driver.c` unconditionally
+    called `HAL_UARTEx_ReceiveToIdle_DMA`, which dereferences a NULL
+    `hdmarx` on USART3 (no DMA stream wired there — see
+    `stm32f4xx_hal_msp.c`). Driver now checks `hdmarx` and falls back to
+    `HAL_UARTEx_ReceiveToIdle_IT()` automatically. USART3 stays wired for
+    bench testing (NMEA fed over the ST-LINK USB/VCP from a PC) — **swap to
+    `&huart6` in `main.c`'s `GPS_Start_Task()` before flashing onto the
+    bike** (commented at the call site).
+  - **Uninitialized-struct writes on Broker read failure** in
+    `AMS_CAN_Task.c` and `AMS_GPS_Task.c` — fixed by zero-initializing and
+    checking the return value before using the data.
+  - **`vd_LED_Manager_Init()` was never called** — all 4 LEDs stayed ON from
+    boot (active-low + CubeMX leaves pins RESET). Now called from `main()`.
+  - **Task stacks were 512B while calling `printf`** (which can use
+    600-1500B) with no overflow detection at all. Bumped to 1024B (2048B for
+    the Logger/dashboard task, unchanged), enabled
+    `configCHECK_FOR_STACK_OVERFLOW`, added a hook that lights the RED LED
+    and halts instead of corrupting adjacent RAM silently.
+  - Cut Broker Get/Update boilerplate via two shared static helpers
+    (`prv_Broker_Read`/`prv_Broker_Write`) — every domain's function body is
+    now ~1 line instead of ~15 duplicated ones.
+  - Switched the Broker's mutex from recursive to plain
+    `osMutexPrioInherit` — nothing recurses, and staying non-recursive means
+    a future bug that nests two calls on the same domain deadlocks loudly
+    instead of silently "working."
+  - Thread creation in `main.c` now respects `AMS_task_config.h`'s
+    `TASK_*_ENABLE` flags (previously all 6 threads were always created;
+    each disabled one just exited immediately on first run).
+  - 3 doc/code mismatches fixed: README's LED polarity claim (was
+    "active-high", code is active-low), Flash task README's magic-word
+    constant (was `0xDEADBEEF`, code is `0xAEC01AD0`), Broker header's stale
+    "(Pub/Sub pattern)" comment.
+  - Test suite: 50/50 passing (2 new tests for the Powertrain domain split).
 
 ## Open items, in recommended order
 

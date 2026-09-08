@@ -74,14 +74,14 @@ DMA_HandleTypeDef hdma_sdio_tx;
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for Task_ADC */
 osThreadId_t Task_ADCHandle;
 const osThreadAttr_t Task_ADC_attributes = {
   .name = "Task_ADC",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for Task_SD_Card */
@@ -95,21 +95,21 @@ const osThreadAttr_t Task_SD_Card_attributes = {
 osThreadId_t Task_CANHandle;
 const osThreadAttr_t Task_CAN_attributes = {
   .name = "Task_CAN",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for Task_Flash_Memo */
 osThreadId_t Task_Flash_MemoHandle;
 const osThreadAttr_t Task_Flash_Memo_attributes = {
   .name = "Task_Flash_Memo",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for GPS_Task */
 osThreadId_t GPS_TaskHandle;
 const osThreadAttr_t GPS_Task_attributes = {
   .name = "GPS_Task",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
@@ -187,6 +187,10 @@ int main(void)
 
 	/* --- Shared infrastructure init (must run before any task) --- */
 	b_Broker_Init();
+	vd_LED_Manager_Init();  /* Drives all 4 LEDs to a known OFF state; without
+	                          * this they stay ON from boot (active-low + CubeMX
+	                          * leaves the pins RESET). Must run before any task
+	                          * calls vd_LED_Manager_SetMode(). */
 
   /* USER CODE END 2 */
 
@@ -210,23 +214,43 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of defaultTask */
+  /* creation of defaultTask (always on — dashboard/general housekeeping) */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
+  /* Threads below are gated by AMS_task_config.h so a disabled task doesn't
+   * even get a TCB/stack allocated — previously all six were always created
+   * and each disabled one exited immediately on first run via its own
+   * #if TASK_*_ENABLE / osThreadExit() (still in place, harmless belt-and-
+   * braces), which cost RAM and made `main.c` look like six tasks run when
+   * some don't. */
+#if (TASK_ADC_ENABLE == 1)
   /* creation of Task_ADC */
   Task_ADCHandle = osThreadNew(ADC_Start, NULL, &Task_ADC_attributes);
+#endif
 
-  /* creation of Task_SD_Card */
+#if (TASK_SD_CARD_ENABLE == 1) || (FEATURE_LOGGER_PRINT_ENABLE == 1)
+  /* creation of Task_SD_Card — this thread also hosts the terminal dashboard
+   * printer (FEATURE_LOGGER_PRINT_ENABLE), which is independent of SD-card
+   * logging (TASK_SD_CARD_ENABLE). Must match the #if inside SD_Card_Start()
+   * below, or the dashboard silently stops working whenever SD logging is
+   * disabled. */
   Task_SD_CardHandle = osThreadNew(SD_Card_Start, NULL, &Task_SD_Card_attributes);
+#endif
 
+#if (TASK_CAN_ENABLE == 1)
   /* creation of Task_CAN */
   Task_CANHandle = osThreadNew(CAN_Start, NULL, &Task_CAN_attributes);
+#endif
 
+#if (TASK_FLASH_MEMO_ENABLE == 1)
   /* creation of Task_Flash_Memo */
   Task_Flash_MemoHandle = osThreadNew(Flash_Memory_Start, NULL, &Task_Flash_Memo_attributes);
+#endif
 
+#if (TASK_GPS_ENABLE == 1)
   /* creation of GPS_Task */
   GPS_TaskHandle = osThreadNew(GPS_Start_Task, NULL, &GPS_Task_attributes);
+#endif
 
   /* USER CODE BEGIN RTOS_THREADS */
 #if TASK_FLASH_MEMO_ENABLE
@@ -1147,6 +1171,12 @@ void GPS_Start_Task(void *argument)
 {
   /* USER CODE BEGIN GPS_Start_Task */
 #if TASK_GPS_ENABLE
+	/* huart3 = BENCH TEST wiring only: ST-LINK USB/VCP, NMEA fed from a PC.
+	 * On the actual bike this MUST be &huart6 (see README.md's CAN2/UART
+	 * peripheral map) — huart3 is also the debug printf console and has no
+	 * DMA stream wired, so the driver falls back to interrupt-mode
+	 * reception for it automatically (see AMS_gps_driver.c). Swap this to
+	 * &huart6 before flashing onto the vehicle. */
 	vd_GPS_Task_Init(&huart3);
 	vd_GPS_Manager_TaskProcess();
 #else

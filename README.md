@@ -116,7 +116,7 @@ LEDs integrados en la placa base para indicación de estado, errores y feedback 
     *   `LED 4 (Azul)`: Pin `PK3` (`LED4_GPIO_Port`, `LED4_Pin`)
 *   **Características:**
     *   Modo: `Output Push-Pull`.
-    *   Lógica: Positiva (Activo en nivel ALTO).
+    *   Lógica: Negativa (Activo en nivel BAJO — `GPIO_PIN_RESET` = LED encendido). Ver `AMS_led_driver.c`.
 *   **Información crítica:** → Asegurarse de que en CubeMX el modo sea **estrictamente Output Push Pull** y nunca Open Drain.
 
 ---

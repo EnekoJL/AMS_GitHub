@@ -9,7 +9,10 @@
  *    - TASK_SD_CARD_ENABLE      : SD Card / Logger task
  *    - TASK_CAN_ENABLE          : CAN bus task
  *    - TASK_FLASH_MEMO_ENABLE   : Flash persistence task (thread creation)
- *    - TASK_GPS_ENABLE          : GPS NMEA task (USART6, DMA)
+ *    - TASK_GPS_ENABLE          : GPS NMEA task (USART3 bench-test wiring by
+ *                                      default, DMA on USART6 in production
+ *                                      — see the comment at vd_GPS_Task_Init()'s
+ *                                      call site in main.c)
  *
  *  SUB-FEATURE FLAGS:
  *    - FEATURE_FLASH_WRITE_ENABLE    : When 0, b_Persist_SaveConfig() returns

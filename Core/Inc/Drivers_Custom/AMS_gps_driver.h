@@ -1,12 +1,15 @@
 /**
  * @file    AMS_gps_driver.h
  * @brief   Custom GPS driver for AMS project.
- *          Thin HAL wrapper for USART6 idle-line DMA reception.
- *          Owns the private DMA buffer; exposes only Init and StartReceive.
+ *          Thin HAL wrapper for idle-line UART reception — DMA when the
+ *          bound UART has a DMA stream wired (USART6, production), IT
+ *          otherwise (USART3, bench testing). See AMS_gps_driver.c's file
+ *          header for the full explanation.
+ *          Owns the private receive buffer; exposes only Init and StartReceive.
  *
  * Usage (called from AMS_GPS_Task):
- *   vd_AMS_GPS_Init(&huart6);
- *   vd_AMS_GPS_StartReceive();   // arms first DMA transfer
+ *   vd_AMS_GPS_Init(&huart6);    // or &huart3 for bench testing
+ *   vd_AMS_GPS_StartReceive();   // arms first reception (DMA or IT)
  *   // Re-arm after each sentence: call vd_AMS_GPS_StartReceive() again
  *   //   from HAL_UARTEx_RxEventCallback inside AMS_GPS_Task.c
  */

@@ -15,7 +15,7 @@ The reception mechanism is strictly event-driven to avoid missing fast CAN frame
 1. **Inverter Status Parsing:** 
    * Specifically listens for Standard ID `0x181` (Inverter Status).
    * Extracts the current Motor RPM (Little Endian, signed 16-bit integer).
-   * Safely updates the `inverter_rpm` field in the `Vehicle_Data_t` struct within the Data Broker.
+   * Safely updates the `AMS_Powertrain_Data_t` struct within the Data Broker (own domain/mutex, single writer: `AMS_CAN_Task`).
 2. **Hardware Filtering:** 
    * Utilizes STM32 CAN hardware filters to reject unwanted CAN IDs at the silicon level, preventing unnecessary CPU wakeups and queue flooding.
 3. **On-Demand Transmission (Debugging):** 

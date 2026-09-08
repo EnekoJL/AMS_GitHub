@@ -17,7 +17,7 @@ The `AMS_Flash_Task` is the persistent storage manager. It ensures critical data
    * Records are appended sequentially into empty space (without erasing).
    * Only when Sector A is completely full is Sector B erased, and writing jumps to the fresh sector. This splits wear evenly and allows for millions of save cycles.
 2. **Data Integrity (CRC32):**
-   * Every 12-byte record contains a Magic Word (`0xDEADBEEF`), the actual config data, and a custom CRC32 checksum.
+   * Every 12-byte record contains a Magic Word (`0xAEC01AD0`), the actual config data, and a custom CRC32 checksum.
    * If a power loss occurs mid-write and corrupts the last slot, the scanner simply ignores it because the CRC will fail, falling back to the previous valid slot.
 3. **Flash Write Toggles:**
    * Write operations can be dynamically disabled via the `FEATURE_FLASH_WRITE_ENABLE` macro in `AMS_task_config.h` during testing to prevent unnecessary flash wear.

@@ -1,12 +1,14 @@
 # AMS_GPS_Task
 
 ## Overview
-The `AMS_GPS_Task` manages the reception, buffering, and parsing of NMEA 0183 sentences coming from an external GPS module over a USART interface. It utilizes a DMA-based reception strategy coupled with idle-line detection to efficiently capture complete GPS sentences without dropping bytes.
+The `AMS_GPS_Task` manages the reception, buffering, and parsing of NMEA 0183 sentences coming from an external GPS module over a USART interface. It utilizes an idle-line detection strategy to efficiently capture complete GPS sentences without dropping bytes — DMA-based when the bound UART has a DMA stream wired, interrupt-based otherwise.
 
-## Execution Model: DMA Idle-Line to Queue
-1. **Hardware DMA Setup:** The driver configures `HAL_UARTEx_ReceiveToIdle_DMA`, pointing the hardware to write incoming UART bytes directly into a buffer.
+**Which UART:** bound at init via `vd_GPS_Task_Init(&huartX)`, called from `main.c`'s `GPS_Start_Task()`. Currently wired to **USART3** for bench testing (NMEA sentences fed over the ST-LINK USB/VCP from a PC — USART3 has no DMA stream configured, so the driver falls back to interrupt-mode reception automatically). **Production on the bike is USART6** (has DMA wired) — swap the call site before flashing onto the vehicle. See `AMS_gps_driver.c`'s file header for the full explanation.
+
+## Execution Model: Idle-Line to Queue
+1. **Hardware Reception Setup:** The driver arms `HAL_UARTEx_ReceiveToIdle_DMA` (USART6) or `HAL_UARTEx_ReceiveToIdle_IT` (USART3), pointing the hardware to write incoming UART bytes directly into a buffer.
 2. **Idle-Line Interrupt:** When the GPS module finishes transmitting a burst of NMEA sentences, the UART RX line goes idle. The STM32 hardware detects this and triggers `HAL_UARTEx_RxEventCallback` in ISR context.
-3. **Queue Push:** The ISR immediately copies the buffered burst into a `GPS_NmeaPacket_t` and posts it to a FreeRTOS Queue. It then instantly re-arms the DMA to prevent dropped bytes.
+3. **Queue Push:** The ISR immediately copies the buffered burst into a `GPS_NmeaPacket_t` and posts it to a FreeRTOS Queue. It then instantly re-arms reception to prevent dropped bytes.
 4. **Task Processing:** The task wakes from `osMessageQueueGet`, splits the burst into individual sentences, and runs them through the parser.
 
 ## Core Features

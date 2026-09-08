@@ -69,8 +69,15 @@
 #define configTICK_RATE_HZ                       ((TickType_t)1000)
 #define configMAX_PRIORITIES                     ( 56 )
 #define configMINIMAL_STACK_SIZE                 ((uint16_t)128)
-#define configTOTAL_HEAP_SIZE                    ((size_t)15360)
+#define configTOTAL_HEAP_SIZE                    ((size_t)20480)
 #define configMAX_TASK_NAME_LEN                  ( 16 )
+/* 2 = overwrite check (fast) + watermark check (catches high-water-mark
+ * corruption too). Tasks call printf, which can use 600-1500 bytes of
+ * stack on its own — without this, an overflow silently corrupts whatever
+ * is next in RAM instead of trapping in vApplicationStackOverflowHook()
+ * (see freertos.c), which lights the RED LED instead of a mystery hard
+ * fault on track. */
+#define configCHECK_FOR_STACK_OVERFLOW            2
 #define configUSE_TRACE_FACILITY                 1
 #define configUSE_16_BIT_TICKS                   0
 #define configUSE_MUTEXES                        1

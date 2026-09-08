@@ -1,6 +1,8 @@
 /**
  * @file    DataBroker.h
- * @brief   Gestor centralizado de datos del vehículo (Pub/Sub pattern).
+ * @brief   Gestor centralizado de datos del vehículo (Shared-State / Blackboard
+ *          pattern — see Architecture_Overview.md; this is NOT Pub/Sub, there
+ *          is no topic subscription or notify-on-change).
  * @author  Eneko Juanena
  * @date    6 de Marzo de 2026
  */
@@ -102,6 +104,22 @@ bool b_Broker_Update_TelemetryData(const AMS_Telemetry_Data_t *p_new_data);
  * @retval true if successful.
  */
 bool b_Broker_Get_TelemetryData(AMS_Telemetry_Data_t *p_copy);
+
+/* ----- Powertrain Data (CAN inverter RPM) ----- */
+/**
+ * @brief Writes a new powertrain snapshot into the DataBroker.
+ *        Called by AMS_CAN_Task after each parsed inverter status frame.
+ * @param p_new_data  Pointer to the new AMS_Powertrain_Data_t to store.
+ * @retval true if successful.
+ */
+bool b_Broker_Update_PowertrainData(const AMS_Powertrain_Data_t *p_new_data);
+
+/**
+ * @brief Returns a safe copy of the latest powertrain data.
+ * @param p_copy  Pointer to the AMS_Powertrain_Data_t that will receive the copy.
+ * @retval true if successful.
+ */
+bool b_Broker_Get_PowertrainData(AMS_Powertrain_Data_t *p_copy);
 
 /* ----- BMS Data (placeholder — see AMS_BMS_Data_t) ----- */
 /**
