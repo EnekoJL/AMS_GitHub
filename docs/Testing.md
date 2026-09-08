@@ -37,31 +37,38 @@ command.
 | File | Tests | Covers |
 |---|---|---|
 | `test/test_AMS_sensors.c` | 11 | `Algorithms/AMS_sensors.c` — voltage/temperature conversion. No mocks: this file has zero hardware/RTOS dependency, so it runs completely as-is. |
-| `test/test_AMS_DataBroker.c` | 14 | `Middleware/AMS_DataBroker.c` — mutex acquire/release per domain, the 50ms timeout + fault counter, per-domain freshness (`AMS_Safety_Flags_t`). Mocks `cmsis_os.h`. |
+| `test/test_AMS_gps_algorithms.c` | 7 | `Algorithms/AMS_gps_algorithms.c` — NMEA RMC/GGA frame → `GPS_Data_t` conversion. No mocks. |
+| `test/test_AMS_telemetry_algorithms.c` | 10 | `Algorithms/AMS_telemetry_algorithms.c` — odometer/max-speed/avg-speed/accel-decel folding, plus lifetime baseline seeding (`vd_TelemetryCalc_SeedLifetime`). No mocks. |
+| `test/test_AMS_charge_algorithms.c` | 6 | `Algorithms/AMS_charge_algorithms.c` — coulomb counting (Ah discharged/charged, session + lifetime). No mocks. |
+| `test/test_AMS_thermal_algorithms.c` | 4 | `Algorithms/AMS_thermal_algorithms.c` — max/min/avg/delta cell temperature, this-sample and session-worst. No mocks. |
+| `test/test_AMS_current_algorithms.c` | 5 | `Algorithms/AMS_current_algorithms.c` — peak discharge/charge current, session + lifetime. No mocks. |
+| `test/test_AMS_DataBroker.c` | 16 | `Middleware/AMS_DataBroker.c` — mutex acquire/release per domain (all 8), the 50ms timeout + fault counter, per-domain freshness (`AMS_Safety_Flags_t`), `Get_AllData()`'s fixed visit order. Mocks `cmsis_os.h`. |
 | `test/test_AMS_Flash_Task.c` | 7 | `Middleware/AMS_Flash_Task.c` — sector scanning, CRC32 record validation, wear-leveling sector selection (which of the two sectors wins on boot). Mocks the flash driver + the Broker. |
-| `test/test_AMS_CAN_Task.c` | 3 | `parse_inverter_status()` — the CAN→RPM parser. See "Testing a `static` function" below for how this one works without touching the original file. |
+| `test/test_AMS_Led_Task.c` | 8 | `Middleware/AMS_Led_Task.c` — the ON/OFF/TOGGLE/BLINK state machine, per-channel independence, blink-deadline expiry. Mocks `AMS_led_driver.h` + `HAL_GetTick`. |
+| `test/test_AMS_CAN_Task.c` | 4 | `parse_inverter_status()` — the CAN→RPM parser, including a Broker-write-failure path. See "Testing a `static` function" below for how this one works without touching the original file. |
+| `test/test_AMS_gps_driver.c` | 4 | `Drivers_Custom/AMS_gps_driver.c` — the DMA-vs-interrupt reception fallback (USART6 has a DMA stream wired, USART3 doesn't). Mocks `HAL_UARTEx_ReceiveToIdle_DMA/IT` via `main.h`. |
 
-**Total: 35 tests, all passing.**
+**Total: 82 tests, all passing.**
 
 ### Not covered yet, and why
 
-`AMS_GPS_Task.c`, `AMS_Data_Calculator_Task.c`, and the rest of
-`AMS_CAN_Task.c` (`vd_CAN_Manager_TaskProcess`, `vd_GPS_Manager_TaskProcess`)
-are **not** unit-testable in their current form. Their real logic (NMEA
-parsing, distance/speed/acceleration math, the CAN RX drain loop) is written
-directly inside an infinite `for(;;)` task loop, not in a separate callable
-function. Calling that function from a test would just hang forever waiting
-on `osMessageQueueGet`/`osDelay` — there's no way to run "one iteration" and
-get control back.
+The task **loop wrappers** themselves aren't unit-tested — only the pure
+logic that's been extracted out of them. Concretely still untested:
+`vd_CAN_Manager_TaskProcess()`'s queue-drain + button-TX loop,
+`vd_GPS_Manager_TaskProcess()`'s queue-drain + multi-sentence-split loop,
+`AMS_ADC_Task.c`'s ISR/shadow-buffer handling, and
+`AMS_Data_Calculator_Task.c`'s/`AMS_Logger_Task.c`'s outer `for(;;)` bodies.
+These all block forever on `osMessageQueueGet`/`osDelay` inside an infinite
+loop with no way to run "one iteration" and get control back — the same
+reason GPS/telemetry math used to be untestable until it was pulled out into
+`Algorithms/AMS_gps_algorithms.c` / `AMS_telemetry_algorithms.c` (now
+tested, see the table above). Extracting more of these loop bodies the same
+way is possible but is a production-code change worth asking about first,
+not doing silently.
 
-Fixing this needs a real (small) production-code change: pulling the
-per-message logic out of the loop into its own function that the loop calls
-once per iteration, the same way `parse_inverter_status` already is for CAN.
-That's a deliberate decision to make, not something to do silently — ask
-before extracting it.
-
-`AMS_BMS_Data_t`'s broker plumbing (write/read/freshness) is tested inside
-`test_AMS_DataBroker.c`, but there is no producer task for it yet (see
+`AMS_BMS_Data_t`'s and `AMS_BatteryStats_Data_t`'s broker plumbing
+(write/read/freshness) is tested inside `test_AMS_DataBroker.c`, but there
+is no producer task for either yet (see
 `Architecture_Overview.md`), so there's nothing further to unit-test there
 until a BMS driver/CAN parser exists.
 
@@ -192,17 +199,18 @@ failure.
 
 ## Order-sensitivity — read before adding new tests to an existing file
 
-`test_AMS_DataBroker.c` and `test_AMS_Flash_Task.c` both test modules that
-keep real state in file-scope `static` variables (mutex handles, the fault
-counter, `s_state` in the Flash Task). Unity does **not** restart the
-process between test functions in the same file — those statics persist for
-the whole test binary's run.
+`test_AMS_DataBroker.c`, `test_AMS_Flash_Task.c`, and `test_AMS_gps_driver.c`
+all test modules that keep real state in file-scope `static` variables
+(mutex handles, the fault counter, `s_state` in the Flash Task, `s_phuart`
+in the GPS driver). Unity does **not** restart the process between test
+functions in the same file — those statics persist for the whole test
+binary's run.
 
-Both files have a large comment at the top explaining exactly what must run
+All three files have a comment at the top explaining exactly what must run
 first and why (typically: a "before anything is initialized, everything
 fails closed" test has to be the very first function declared, before any
 other test calls the real `_Init()`). **Read that comment before reordering
-or inserting a new test into either file** — Unity runs test functions in
+or inserting a new test into any of these files** — Unity runs test functions in
 the order they're declared in the file, not alphabetically, and this is
 relied upon.
 

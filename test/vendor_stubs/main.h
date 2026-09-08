@@ -30,6 +30,14 @@ typedef struct { uint32_t dummy; } GPIO_TypeDef;
 typedef struct { uint32_t dummy; } CAN_HandleTypeDef;
 typedef struct { uint32_t StdId; uint32_t ExtId; uint32_t IDE; uint32_t RTR; uint32_t DLC; } CAN_RxHeaderTypeDef;
 
+/* DMA_HandleTypeDef is opaque here — test code only ever checks whether a
+ * UART_HandleTypeDef's hdmarx is NULL or non-NULL, never dereferences it. */
+typedef struct { uint32_t dummy; } DMA_HandleTypeDef;
+typedef struct {
+    uint32_t            dummy;
+    DMA_HandleTypeDef  *hdmarx; /* NULL when no DMA stream is wired for this UART */
+} UART_HandleTypeDef;
+
 #define GPIO_PIN_0  ((uint16_t)0x0001)
 
 /* Real main.h defines these as macros resolving to a real GPIOA register
@@ -41,5 +49,15 @@ typedef struct { uint32_t StdId; uint32_t ExtId; uint32_t IDE; uint32_t RTR; uin
 
 GPIO_PinState HAL_GPIO_ReadPin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
 void Error_Handler(void);
+uint32_t HAL_GetTick(void);
+
+HAL_StatusTypeDef HAL_UARTEx_ReceiveToIdle_DMA(UART_HandleTypeDef *huart, uint8_t *pData, uint16_t Size);
+HAL_StatusTypeDef HAL_UARTEx_ReceiveToIdle_IT(UART_HandleTypeDef *huart, uint8_t *pData, uint16_t Size);
+
+/* Real __HAL_DMA_DISABLE_IT is a register-level macro (not a real function,
+ * can't be CMock-mocked). Tests only care about which reception function
+ * gets armed (DMA vs IT) in AMS_gps_driver.c, not this side effect. */
+#define __HAL_DMA_DISABLE_IT(__HANDLE__, __INTERRUPT__) ((void)0)
+#define DMA_IT_HT 0x00000004U
 
 #endif /* MAIN_H_ */
