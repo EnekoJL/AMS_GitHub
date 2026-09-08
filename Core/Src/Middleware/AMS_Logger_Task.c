@@ -82,6 +82,7 @@ void vd_Logger_Init(void)
                     "BAT_12V_MV,SUSP1_DMM,SUSP2_DMM,RPM,"
                     "GPS_FIX,SATS,LAT_UDEG,LON_UDEG,SPEED_KMH_X1000,"
                     "DIST_M,MAX_SPEED_KMH_X1000,AVG_SPEED_KMH_X1000,MAX_ACCEL_X1000,MAX_DECEL_X1000,"
+                    "LIFETIME_DIST_M,LIFETIME_MAX_SPEED_KMH_X1000,LIFETIME_MAX_ACCEL_X1000,LIFETIME_MAX_DECEL_X1000,"
                     "BMS_PACK_MV,BMS_PACK_MA,BMS_MIN_CELL_MV,BMS_MAX_CELL_MV,BMS_MAX_TEMP_CC,BMS_SOC_X10,BMS_FAULTS,"
                     "VEH_FRESH,ADC_FRESH,GPS_FRESH,BMS_FRESH,TELEM_FRESH,RPM_FRESH\n";
                 if (b_SD_Card_WriteSync(p_header)) {
@@ -264,6 +265,21 @@ void vd_Logger_PrintBrokerData(void)
                   (long)(telem.i32_max_decel_ms2_x1000 / 1000),
                   (long)((telem.i32_max_decel_ms2_x1000 < 0 ?
                           -telem.i32_max_decel_ms2_x1000 : telem.i32_max_decel_ms2_x1000) % 1000));
+
+        printf(COL_TELEMETRY "    -- lifetime (baseline + session) ---\r\n" ANSI_RESET);
+        PRINT_ROW("Lifetime distance:", "%lu m", (unsigned long)telem.ui32_lifetime_distance_m);
+        PRINT_ROW("Lifetime max speed:", "%4ld.%03ld km/h",
+                  (long)(telem.i32_lifetime_max_vel_kmh_x1000 / 1000),
+                  (long)((telem.i32_lifetime_max_vel_kmh_x1000 < 0 ?
+                          -telem.i32_lifetime_max_vel_kmh_x1000 : telem.i32_lifetime_max_vel_kmh_x1000) % 1000));
+        PRINT_ROW("Lifetime max accel:", "%4ld.%03ld m/s²",
+                  (long)(telem.i32_lifetime_max_accel_ms2_x1000 / 1000),
+                  (long)((telem.i32_lifetime_max_accel_ms2_x1000 < 0 ?
+                          -telem.i32_lifetime_max_accel_ms2_x1000 : telem.i32_lifetime_max_accel_ms2_x1000) % 1000));
+        PRINT_ROW("Lifetime max decel:", "%4ld.%03ld m/s²",
+                  (long)(telem.i32_lifetime_max_decel_ms2_x1000 / 1000),
+                  (long)((telem.i32_lifetime_max_decel_ms2_x1000 < 0 ?
+                          -telem.i32_lifetime_max_decel_ms2_x1000 : telem.i32_lifetime_max_decel_ms2_x1000) % 1000));
     }
 
     /* ------------------------------------------------------------------ */
@@ -356,6 +372,7 @@ void vd_Logger_TaskProcess(void)
                      "%lu,%lu,%lu,%d,"
                      "%u,%u,%ld,%ld,%ld,"
                      "%lu,%ld,%ld,%ld,%ld,"
+                     "%lu,%ld,%ld,%ld,"
                      "%lu,%ld,%u,%u,%d,%u,%lu,"
                      "%u,%u,%u,%u,%u,%u\n",
                      (unsigned long)ui32_now_ms,
@@ -370,12 +387,17 @@ void vd_Logger_TaskProcess(void)
                      (long)snap.gps.i32_latitude_udeg,
                      (long)snap.gps.i32_longitude_udeg,
                      (long)snap.gps.i32_vel_kmh_x1000,
-                     /* Telemetry */
+                     /* Telemetry — session */
                      (unsigned long)snap.telemetry.ui32_total_distance_m,
                      (long)snap.telemetry.i32_max_vel_kmh_x1000,
                      (long)snap.telemetry.i32_avg_vel_kmh_x1000,
                      (long)snap.telemetry.i32_max_accel_ms2_x1000,
                      (long)snap.telemetry.i32_max_decel_ms2_x1000,
+                     /* Telemetry — lifetime (== session until flash seeding exists, see TODO) */
+                     (unsigned long)snap.telemetry.ui32_lifetime_distance_m,
+                     (long)snap.telemetry.i32_lifetime_max_vel_kmh_x1000,
+                     (long)snap.telemetry.i32_lifetime_max_accel_ms2_x1000,
+                     (long)snap.telemetry.i32_lifetime_max_decel_ms2_x1000,
                      /* BMS (placeholder — 0 until a BMS task exists) */
                      (unsigned long)snap.bms.ui32_pack_voltage_mV,
                      (long)snap.bms.i32_pack_current_mA,

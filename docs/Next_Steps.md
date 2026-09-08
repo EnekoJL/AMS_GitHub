@@ -75,6 +75,39 @@ pick this back up without re-deriving context.
     constant (was `0xDEADBEEF`, code is `0xAEC01AD0`), Broker header's stale
     "(Pub/Sub pattern)" comment.
   - Test suite: 50/50 passing (2 new tests for the Powertrain domain split).
+- Battery-stats calculator layer, SRP-decomposed per an architecture-design
+  agent's proposal (each module owns one accumulator struct + one pure fold
+  function, no Broker/RTOS calls inside — same shape as
+  `AMS_telemetry_algorithms.c`):
+  - `Algorithms/AMS_charge_algorithms.c` — Ah discharged/charged, session +
+    lifetime (coulomb counting, mA*ms integration to avoid per-sample
+    truncation).
+  - `Algorithms/AMS_thermal_algorithms.c` — max/min/avg/delta cell temp,
+    this-sample and session-worst. Session avg is a TIME-average of the
+    spatial mean, not the same number as the this-sample spatial mean —
+    named apart deliberately, see the struct comment.
+  - `Algorithms/AMS_current_algorithms.c` — max discharge/charge current,
+    session + lifetime.
+  - Composed into a new placeholder Broker domain, `AMS_BatteryStats_Data_t`
+    (own mutex, 1500ms max-age, `b_battery_stats_fresh` flag) — same
+    placeholder status as `AMS_BMS_Data_t`, waiting on the BMS task below.
+  - Extended `AMS_Telemetry_Data_t`/`AMS_TelemetryAccumulator_t` with
+    lifetime distance/max-speed/max-accel/max-decel alongside the existing
+    session fields (`vd_TelemetryCalc_SeedLifetime()`), fully wired through
+    the Data Calculator task, Broker, and Logger dashboard/CSV — this one
+    isn't a placeholder, it's live today (lifetime == session until flash
+    seeding exists, see below).
+  - **Deliberately NOT done this round** (see open items #2 and #3 below):
+    wiring the folds into a real BMS task (none exists — no SPI driver, no
+    hardware chosen yet), and seeding any lifetime baseline from flash
+    (`AMS_Persistent_Config_t`'s schema for historic stats isn't decided).
+    Every seed function (`vd_ChargeCalc_SeedLifetime`,
+    `vd_CurrentCalc_SeedLifetime`, `vd_TelemetryCalc_SeedLifetime`) exists
+    and is tested in isolation, just not called from production code yet —
+    grep for "TODO" in `AMS_Data_Calculator_Task.c` and the three new
+    Algorithms headers for the exact plug-in points.
+  - Test suite: 70/70 passing (20 new: 6 charge, 4 thermal, 5 current, 4
+    telemetry-lifetime, 1 battery-stats Broker roundtrip).
 
 ## Open items, in recommended order
 
@@ -93,6 +126,35 @@ placeholder with no producer. Nothing calls `b_Broker_Update_BMSData()`.
 This is a hardware/product decision (what BMS chip, CAN IDs or SPI/UART
 interface, what fault bits actually mean) more than a pure coding task —
 needs your input on the real BMS interface before it can be built.
+
+Once it exists, its loop is also where the three battery-stats folds plug
+in (`b_ChargeCalc_Fold`, `b_ThermalCalc_Fold`, `b_CurrentCalc_Fold` from
+`Algorithms/AMS_charge_algorithms.c` / `AMS_thermal_algorithms.c` /
+`AMS_current_algorithms.c`) — coulomb counting needs every current sample
+with an exact dt, which only the task reading the SPI chain has; a
+separate task polling the Broker's latest-value-only snapshot would
+integrate garbage. See the worked example in this session's chat log (or
+just copy the shape of `vd_Calculator_Manager_TaskProcess()`) once the
+driver exists.
+
+### 3. Flash schema for historic/lifetime stats
+
+`AMS_Persistent_Config_t` still only has `soc_percent_x10` and
+`cycle_count`. Lifetime distance/max-speed/max-accel/max-decel (telemetry)
+and lifetime Ah/max-discharge-current (battery stats) all have working,
+tested `SeedLifetime()` functions ready to consume baseline values — none
+are called yet because the flash record layout to carry them isn't decided.
+Two real gotchas to handle when this gets built (raised during design, not
+yet hit in code since nothing writes these fields today):
+- Growing `AMS_Persistent_Config_t` past two `uint16_t`s introduces struct
+  padding — `AMS_Flash_Task.c`'s CRC32 runs over raw `sizeof(...)` bytes,
+  so un-initialized padding will eventually produce a CRC mismatch on
+  read-back. Pack the struct explicitly (or hand-pad) before adding fields.
+- Growing the record size invalidates the byte-stride `prv_scan_sector()`
+  uses to walk existing flash records — needs a one-time version-mismatch
+  detection + erase-and-reset in `vd_Persist_Init()` before this ships.
+`FEATURE_FLASH_WRITE_ENABLE` is `0` today, so there's no rush, but don't
+skip the packing/versioning care just because writes are currently disabled.
 
 ## Smaller/lower-priority gaps
 

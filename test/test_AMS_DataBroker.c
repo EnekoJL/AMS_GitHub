@@ -43,6 +43,7 @@ TEST_SOURCE_FILE("Middleware/AMS_DataBroker.c")
 #define FAKE_MTX_TEL  ((osMutexId_t)0x1005)
 #define FAKE_MTX_BMS  ((osMutexId_t)0x1006)
 #define FAKE_MTX_PWR  ((osMutexId_t)0x1007)
+#define FAKE_MTX_STATS ((osMutexId_t)0x1008)
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -62,6 +63,7 @@ void test_T00_before_init_every_function_fails_closed(void)
     AMS_Telemetry_Data_t telem  = {0};
     AMS_BMS_Data_t       bms    = {0};
     AMS_Powertrain_Data_t pt    = {0};
+    AMS_BatteryStats_Data_t stats = {0};
     AMS_Persistent_Config_t cfg = {0};
     AMS_Safety_Flags_t   flags  = {0};
     AMS_Data_t           all    = {0};
@@ -78,6 +80,8 @@ void test_T00_before_init_every_function_fails_closed(void)
     TEST_ASSERT_FALSE(b_Broker_Update_BMSData(&bms));
     TEST_ASSERT_FALSE(b_Broker_Get_PowertrainData(&pt));
     TEST_ASSERT_FALSE(b_Broker_Update_PowertrainData(&pt));
+    TEST_ASSERT_FALSE(b_Broker_Get_BatteryStats(&stats));
+    TEST_ASSERT_FALSE(b_Broker_Update_BatteryStats(&stats));
     TEST_ASSERT_FALSE(b_Broker_Get_PersistentConfig(&cfg));
     vd_Broker_Set_PersistentConfig(&cfg); /* void — must not crash */
     TEST_ASSERT_FALSE(b_Broker_Get_SafetyFlags(&flags));
@@ -87,11 +91,11 @@ void test_T00_before_init_every_function_fails_closed(void)
 }
 
 /* =========================================================================
- * T01 — b_Broker_Init() creates exactly seven mutexes, in this fixed order:
- * vehiculo, adc, persistent, gps, telemetry, bms, powertrain (matches the
- * source).
+ * T01 — b_Broker_Init() creates exactly eight mutexes, in this fixed order:
+ * vehiculo, adc, persistent, gps, telemetry, bms, powertrain, battery_stats
+ * (matches the source).
  * ========================================================================= */
-void test_T01_init_creates_seven_mutexes_in_order(void)
+void test_T01_init_creates_eight_mutexes_in_order(void)
 {
     osMutexNew_ExpectAnyArgsAndReturn(FAKE_MTX_VEH);
     osMutexNew_ExpectAnyArgsAndReturn(FAKE_MTX_ADC);
@@ -100,6 +104,7 @@ void test_T01_init_creates_seven_mutexes_in_order(void)
     osMutexNew_ExpectAnyArgsAndReturn(FAKE_MTX_TEL);
     osMutexNew_ExpectAnyArgsAndReturn(FAKE_MTX_BMS);
     osMutexNew_ExpectAnyArgsAndReturn(FAKE_MTX_PWR);
+    osMutexNew_ExpectAnyArgsAndReturn(FAKE_MTX_STATS);
 
     b_Broker_Init();
 }
@@ -122,6 +127,7 @@ void test_T02_safety_flags_all_stale_immediately_after_init(void)
     TEST_ASSERT_FALSE(flags.b_bms_data_fresh);
     TEST_ASSERT_FALSE(flags.b_telemetry_data_fresh);
     TEST_ASSERT_FALSE(flags.b_powertrain_data_fresh);
+    TEST_ASSERT_FALSE(flags.b_battery_stats_fresh);
 }
 
 /* =========================================================================
@@ -174,6 +180,7 @@ void test_T04_safety_flags_vehicle_fresh_others_still_stale(void)
     TEST_ASSERT_FALSE(flags.b_bms_data_fresh);
     TEST_ASSERT_FALSE(flags.b_telemetry_data_fresh);
     TEST_ASSERT_FALSE(flags.b_powertrain_data_fresh);
+    TEST_ASSERT_FALSE(flags.b_battery_stats_fresh);
 }
 
 /* =========================================================================
@@ -337,6 +344,36 @@ void test_T08b_powertrain_roundtrip_uses_powertrain_mutex(void)
 }
 
 /* =========================================================================
+ * T08c — Battery stats roundtrip (own mutex; composes AMS_ChargeStats_t /
+ * AMS_ThermalStats_t / AMS_CurrentStats_t — see AMS_DataStructs.h).
+ * ========================================================================= */
+void test_T08c_battery_stats_roundtrip_uses_battery_stats_mutex(void)
+{
+    AMS_BatteryStats_Data_t sent = {0};
+    sent.charge.ui32_session_discharged_mAh  = 1500;
+    sent.thermal.i16_max_cell_temp_cC        = 4200;
+    sent.current.ui32_session_max_discharge_mA = 90000;
+
+    osMutexAcquire_ExpectAndReturn(FAKE_MTX_STATS, 0, osOK);
+    osMutexAcquire_IgnoreArg_timeout();
+    osKernelGetTickCount_ExpectAndReturn(7500);
+    osMutexRelease_ExpectAndReturn(FAKE_MTX_STATS, osOK);
+
+    TEST_ASSERT_TRUE(b_Broker_Update_BatteryStats(&sent));
+
+    osMutexAcquire_ExpectAndReturn(FAKE_MTX_STATS, 0, osOK);
+    osMutexAcquire_IgnoreArg_timeout();
+    osMutexRelease_ExpectAndReturn(FAKE_MTX_STATS, osOK);
+
+    AMS_BatteryStats_Data_t got = {0};
+    TEST_ASSERT_TRUE(b_Broker_Get_BatteryStats(&got));
+
+    TEST_ASSERT_EQUAL_UINT32(1500,  got.charge.ui32_session_discharged_mAh);
+    TEST_ASSERT_EQUAL_INT16(4200,   got.thermal.i16_max_cell_temp_cC);
+    TEST_ASSERT_EQUAL_UINT32(90000, got.current.ui32_session_max_discharge_mA);
+}
+
+/* =========================================================================
  * T09 — Persistent config roundtrip. Unlike every other domain, this one
  * does NOT participate in freshness tracking (no timestamp stamped, not in
  * AMS_Safety_Flags_t) — it's Flash-backed config, not real-time telemetry.
@@ -400,8 +437,8 @@ void test_T11_update_mutex_timeout_returns_false_and_counts_fault(void)
 
 /* =========================================================================
  * T12 — b_Broker_Get_AllData() calls every domain's Getter in this fixed
- * order: vehicle, bms, sensors(adc), gps, telemetry, powertrain, then
- * safety flags.
+ * order: vehicle, bms, sensors(adc), gps, telemetry, powertrain,
+ * battery_stats, then safety flags.
  * ========================================================================= */
 void test_T12_get_all_data_visits_every_domain_in_order(void)
 {
@@ -429,6 +466,10 @@ void test_T12_get_all_data_visits_every_domain_in_order(void)
     osMutexAcquire_IgnoreArg_timeout();
     osMutexRelease_ExpectAndReturn(FAKE_MTX_PWR, osOK);
 
+    osMutexAcquire_ExpectAndReturn(FAKE_MTX_STATS, 0, osOK);
+    osMutexAcquire_IgnoreArg_timeout();
+    osMutexRelease_ExpectAndReturn(FAKE_MTX_STATS, osOK);
+
     osKernelGetTickCount_ExpectAndReturn(9000);
 
     AMS_Data_t snap = {0};
@@ -438,6 +479,8 @@ void test_T12_get_all_data_visits_every_domain_in_order(void)
     TEST_ASSERT_EQUAL_UINT32(12500, snap.vehicle.bateria_12v_mV);
     /* Powertrain data was written back in T08b and never changed since. */
     TEST_ASSERT_EQUAL_INT16(-1500, snap.powertrain.inverter_rpm);
+    /* Battery stats were written back in T08c and never changed since. */
+    TEST_ASSERT_EQUAL_UINT32(1500, snap.battery_stats.charge.ui32_session_discharged_mAh);
 }
 
 /* =========================================================================
@@ -458,6 +501,8 @@ void test_T13_null_pointer_calls_do_not_crash(void)
     TEST_ASSERT_FALSE(b_Broker_Update_BMSData(NULL));
     TEST_ASSERT_FALSE(b_Broker_Get_PowertrainData(NULL));
     TEST_ASSERT_FALSE(b_Broker_Update_PowertrainData(NULL));
+    TEST_ASSERT_FALSE(b_Broker_Get_BatteryStats(NULL));
+    TEST_ASSERT_FALSE(b_Broker_Update_BatteryStats(NULL));
     TEST_ASSERT_FALSE(b_Broker_Get_PersistentConfig(NULL));
     vd_Broker_Set_PersistentConfig(NULL); /* void — must not crash */
     TEST_ASSERT_FALSE(b_Broker_Get_SafetyFlags(NULL));

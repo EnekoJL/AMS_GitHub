@@ -9,6 +9,21 @@
 #include "Algorithms/AMS_telemetry_algorithms.h"
 #include <stddef.h>
 
+void vd_TelemetryCalc_SeedLifetime(AMS_TelemetryAccumulator_t *p_acc,
+                                    uint32_t ui32_distance_m,
+                                    int32_t  i32_max_vel_kmh_x1000,
+                                    int32_t  i32_max_accel_ms2_x1000,
+                                    int32_t  i32_max_decel_ms2_x1000)
+{
+    if (p_acc == NULL) {
+        return;
+    }
+    p_acc->ui32_baseline_distance_m         = ui32_distance_m;
+    p_acc->i32_baseline_max_vel_kmh_x1000   = i32_max_vel_kmh_x1000;
+    p_acc->i32_baseline_max_accel_ms2_x1000 = i32_max_accel_ms2_x1000;
+    p_acc->i32_baseline_max_decel_ms2_x1000 = i32_max_decel_ms2_x1000;
+}
+
 bool b_TelemetryCalc_ProcessFix(AMS_TelemetryAccumulator_t *p_acc,
                                  const GPS_Data_t *p_gps,
                                  AMS_Telemetry_Data_t *p_out_telemetry)
@@ -62,6 +77,29 @@ bool b_TelemetryCalc_ProcessFix(AMS_TelemetryAccumulator_t *p_acc,
     p_out_telemetry->i32_avg_vel_kmh_x1000   = i32_avg_vel_kmh_x1000;
     p_out_telemetry->i32_max_accel_ms2_x1000 = p_acc->i32_max_accel_ms2_x1000;
     p_out_telemetry->i32_max_decel_ms2_x1000 = p_acc->i32_max_decel_ms2_x1000;
+
+    /* Lifetime = baseline (from SeedLifetime, 0 if never called) folded with
+     * the session values just computed above. Distance sums; max speed and
+     * max accel take the larger of the two; max decel takes the smaller
+     * (more negative) of the two — decel is stored negative, so "worst" is
+     * MIN, not MAX. Easy to get backwards, hence the comment. */
+    p_out_telemetry->ui32_lifetime_distance_m = p_acc->ui32_baseline_distance_m
+                                               + p_out_telemetry->ui32_total_distance_m;
+
+    p_out_telemetry->i32_lifetime_max_vel_kmh_x1000 =
+        (p_acc->i32_baseline_max_vel_kmh_x1000 > p_out_telemetry->i32_max_vel_kmh_x1000)
+            ? p_acc->i32_baseline_max_vel_kmh_x1000
+            : p_out_telemetry->i32_max_vel_kmh_x1000;
+
+    p_out_telemetry->i32_lifetime_max_accel_ms2_x1000 =
+        (p_acc->i32_baseline_max_accel_ms2_x1000 > p_out_telemetry->i32_max_accel_ms2_x1000)
+            ? p_acc->i32_baseline_max_accel_ms2_x1000
+            : p_out_telemetry->i32_max_accel_ms2_x1000;
+
+    p_out_telemetry->i32_lifetime_max_decel_ms2_x1000 =
+        (p_acc->i32_baseline_max_decel_ms2_x1000 < p_out_telemetry->i32_max_decel_ms2_x1000)
+            ? p_acc->i32_baseline_max_decel_ms2_x1000
+            : p_out_telemetry->i32_max_decel_ms2_x1000;
 
     p_acc->ui32_last_processed_tick = p_gps->ui32_last_fix_tick_ms;
     p_acc->i32_last_vel_ms_x1000    = i32_vel_ms;

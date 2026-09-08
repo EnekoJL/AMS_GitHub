@@ -109,12 +109,82 @@ typedef struct {
  *        Populated by AMS_Data_Calculator_Task.
  */
 typedef struct {
+    /* --- Session (since boot) --- */
     uint32_t ui32_total_distance_m;
     int32_t  i32_max_vel_kmh_x1000;
     int32_t  i32_avg_vel_kmh_x1000;
     int32_t  i32_max_accel_ms2_x1000;
     int32_t  i32_max_decel_ms2_x1000;
+
+    /* --- Lifetime (survives power cycles) ---
+     * baseline (loaded from flash at boot) folded with the session value
+     * above. TODO: not yet seeded from flash — AMS_Persistent_Config_t
+     * doesn't carry these fields yet (flash schema for historic stats is
+     * still undecided). Until that's wired up, baseline is always 0, so
+     * lifetime == session on every boot. See vd_TelemetryCalc_SeedLifetime()
+     * in Algorithms/AMS_telemetry_algorithms.h for where seeding will plug
+     * in once the schema exists. */
+    uint32_t ui32_lifetime_distance_m;
+    int32_t  i32_lifetime_max_vel_kmh_x1000;
+    int32_t  i32_lifetime_max_accel_ms2_x1000;
+    int32_t  i32_lifetime_max_decel_ms2_x1000;
 } AMS_Telemetry_Data_t;
+
+/**
+ * @brief Derived battery pack statistics — charge moved, thermal extremes,
+ *        peak current. Each sub-struct is the published output of exactly
+ *        one Algorithms module (AMS_charge_algorithms.c,
+ *        AMS_thermal_algorithms.c, AMS_current_algorithms.c respectively —
+ *        single responsibility per module, see those files for the math).
+ *        This struct only composes their outputs; it contains no math of
+ *        its own.
+ *
+ *        Session fields reset on boot. Lifetime fields are meant to survive
+ *        power cycles via AMS_Persistent_Config_t, but that flash schema
+ *        isn't defined yet (see the TODO there) — until it is, lifetime ==
+ *        session on every boot, which is a safe default, not a bug.
+ *
+ *        PLACEHOLDER like AMS_BMS_Data_t: no producer task exists yet (no
+ *        BMS driver/task built). Type is defined now so the Broker's
+ *        storage/API shape is settled before that task exists.
+ */
+typedef struct {
+    uint32_t ui32_session_discharged_mAh;
+    uint32_t ui32_session_charged_mAh;
+    uint32_t ui32_lifetime_discharged_mAh;  /* baseline + session */
+    uint32_t ui32_lifetime_charged_mAh;
+} AMS_ChargeStats_t;
+
+typedef struct {
+    /* This sample */
+    int16_t i16_max_cell_temp_cC;      /* hottest cell right now */
+    int16_t i16_min_cell_temp_cC;      /* coldest cell right now */
+    int16_t i16_avg_cell_temp_cC;      /* spatial mean across cells right now */
+    int16_t i16_delta_temp_cC;         /* max - min across cells right now */
+    uint8_t ui8_hottest_cell_id;
+    uint8_t ui8_coldest_cell_id;
+
+    /* Session (since boot) */
+    int16_t i16_session_max_temp_cC;   /* worst single-cell temp seen */
+    int16_t i16_session_max_delta_cC;  /* worst spread seen */
+    int16_t i16_session_avg_temp_cC;   /* TIME-average of the spatial mean —
+                                         * NOT the same number as
+                                         * i16_avg_cell_temp_cC above, which
+                                         * is a snapshot. Name them apart in
+                                         * any CSV/dashboard. */
+} AMS_ThermalStats_t;
+
+typedef struct {
+    uint32_t ui32_session_max_discharge_mA;
+    uint32_t ui32_session_max_charge_mA;
+    uint32_t ui32_lifetime_max_discharge_mA;  /* MAX(baseline, session) */
+} AMS_CurrentStats_t;
+
+typedef struct {
+    AMS_ChargeStats_t   charge;
+    AMS_ThermalStats_t  thermal;
+    AMS_CurrentStats_t  current;
+} AMS_BatteryStats_Data_t;
 
 /**
  * @brief Battery Management System snapshot (pack-level safety data).
@@ -153,6 +223,7 @@ typedef struct {
     bool b_bms_data_fresh;
     bool b_telemetry_data_fresh;
     bool b_powertrain_data_fresh;
+    bool b_battery_stats_fresh;
 } AMS_Safety_Flags_t;
 
 /**
@@ -176,6 +247,7 @@ typedef struct {
     GPS_Data_t              gps;
     AMS_Telemetry_Data_t    telemetry;
     AMS_Powertrain_Data_t   powertrain;
+    AMS_BatteryStats_Data_t battery_stats;
     AMS_Safety_Flags_t      safety;
 } AMS_Data_t;
 

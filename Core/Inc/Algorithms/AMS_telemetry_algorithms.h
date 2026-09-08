@@ -31,11 +31,41 @@ typedef struct {
     int32_t  i32_max_accel_ms2_x1000;
     int32_t  i32_max_decel_ms2_x1000;
     int32_t  i32_last_vel_ms_x1000;
+
+    /* --- Lifetime baseline, seeded once at boot (see SeedLifetime below) ---
+     * Combined with the session fields above on every fold to produce the
+     * lifetime_* outputs. Zero until something calls SeedLifetime, which
+     * means lifetime == session — a safe, correct default, not a bug. */
+    uint32_t ui32_baseline_distance_m;
+    int32_t  i32_baseline_max_vel_kmh_x1000;
+    int32_t  i32_baseline_max_accel_ms2_x1000;
+    int32_t  i32_baseline_max_decel_ms2_x1000;
 } AMS_TelemetryAccumulator_t;
 
 /**
+ * @brief  Seeds the lifetime baseline fields. Call once, before the first
+ *         b_TelemetryCalc_ProcessFix(), from whatever loads historic totals
+ *         (currently nothing — see the TODO on AMS_Telemetry_Data_t in
+ *         AMS_DataStructs.h). Safe to skip entirely: an un-seeded
+ *         accumulator just reports lifetime == session.
+ *
+ * @param  p_acc                      Accumulator to seed (must be freshly
+ *                                     zeroed / not yet folded into).
+ * @param  ui32_distance_m            Lifetime distance travelled so far.
+ * @param  i32_max_vel_kmh_x1000      Lifetime top speed so far.
+ * @param  i32_max_accel_ms2_x1000    Lifetime hardest acceleration so far.
+ * @param  i32_max_decel_ms2_x1000    Lifetime hardest deceleration so far
+ *                                    (negative — most negative wins).
+ */
+void vd_TelemetryCalc_SeedLifetime(AMS_TelemetryAccumulator_t *p_acc,
+                                    uint32_t ui32_distance_m,
+                                    int32_t  i32_max_vel_kmh_x1000,
+                                    int32_t  i32_max_accel_ms2_x1000,
+                                    int32_t  i32_max_decel_ms2_x1000);
+
+/**
  * @brief  Folds one GPS fix into the running accumulator and derives the
- *         current telemetry snapshot from it.
+ *         current telemetry snapshot from it (both session and lifetime).
  *
  *         Returns false (accumulator and *p_out_telemetry untouched) when
  *         there is nothing new to process: no GPS fix (`b_gps_is_connected`

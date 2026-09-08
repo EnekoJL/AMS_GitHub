@@ -121,6 +121,23 @@ bool b_Broker_Update_PowertrainData(const AMS_Powertrain_Data_t *p_new_data);
  */
 bool b_Broker_Get_PowertrainData(AMS_Powertrain_Data_t *p_copy);
 
+/* ----- Battery Stats Data (placeholder — see AMS_BatteryStats_Data_t) ----- */
+/**
+ * @brief Writes a new battery-stats snapshot into the DataBroker.
+ *        Will be called by a future BMS task after each charge/thermal/
+ *        current fold — no producer exists yet, see AMS_BatteryStats_Data_t.
+ * @param p_new_data  Pointer to the new AMS_BatteryStats_Data_t to store.
+ * @retval true if successful.
+ */
+bool b_Broker_Update_BatteryStats(const AMS_BatteryStats_Data_t *p_new_data);
+
+/**
+ * @brief Returns a safe copy of the latest battery-stats data.
+ * @param p_copy  Pointer to the AMS_BatteryStats_Data_t that will receive the copy.
+ * @retval true if successful.
+ */
+bool b_Broker_Get_BatteryStats(AMS_BatteryStats_Data_t *p_copy);
+
 /* ----- BMS Data (placeholder — see AMS_BMS_Data_t) ----- */
 /**
  * @brief Writes a new BMS snapshot into the DataBroker.

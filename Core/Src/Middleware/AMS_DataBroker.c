@@ -19,6 +19,7 @@ static GPS_Data_t               s_gps_data          = {0};
 static AMS_Telemetry_Data_t     s_telemetry_data    = {0};
 static AMS_BMS_Data_t           s_bms_data          = {0};
 static AMS_Powertrain_Data_t    s_powertrain_data   = {0};
+static AMS_BatteryStats_Data_t  s_battery_stats     = {0};
 
 /* Mutexes para acceso concurrente seguro */
 static osMutexId_t s_mutex_vehiculo   = NULL;
@@ -28,6 +29,7 @@ static osMutexId_t s_mutex_gps        = NULL;
 static osMutexId_t s_mutex_telemetry  = NULL;
 static osMutexId_t s_mutex_bms        = NULL;
 static osMutexId_t s_mutex_powertrain = NULL;
+static osMutexId_t s_mutex_battery_stats = NULL;
 
 /* Last-update timestamps per domain, used only for freshness/safety-flag
  * reporting (b_Broker_Get_SafetyFlags). Not part of the public structs:
@@ -40,6 +42,7 @@ static volatile uint32_t s_gps_last_update_ms         = 0;
 static volatile uint32_t s_telemetry_last_update_ms   = 0;
 static volatile uint32_t s_bms_last_update_ms         = 0;
 static volatile uint32_t s_powertrain_last_update_ms  = 0;
+static volatile uint32_t s_battery_stats_last_update_ms = 0;
 
 /* Explicit "has this domain ever been written" flags. Needed because a
  * tick-based sentinel doesn't work here: HAL ticks wrap as unsigned, so
@@ -51,6 +54,7 @@ static volatile bool s_gps_has_data         = false;
 static volatile bool s_telemetry_has_data   = false;
 static volatile bool s_bms_has_data         = false;
 static volatile bool s_powertrain_has_data  = false;
+static volatile bool s_battery_stats_has_data = false;
 
 /* Max allowed age (ms) before a domain is reported stale. Tune once real
  * producer rates / consumer needs are known — these are starting points
@@ -61,6 +65,7 @@ static volatile bool s_powertrain_has_data  = false;
 #define BROKER_MAX_AGE_TELEMETRY_MS   300U   /* AMS_Data_Calculator_Task, 10ms poll   */
 #define BROKER_MAX_AGE_BMS_MS         500U   /* placeholder: no producer task yet     */
 #define BROKER_MAX_AGE_POWERTRAIN_MS  300U   /* CAN, 20ms poll of RX queue            */
+#define BROKER_MAX_AGE_BATTERY_STATS_MS 1500U /* derived from BMS; no producer yet    */
 
 /* Atributos de los Mutexes.
  * osMutexPrioInherit only (no osMutexRecursive): nothing in this file
@@ -157,6 +162,9 @@ void b_Broker_Init(void) {
     if (s_mutex_powertrain == NULL) {
         s_mutex_powertrain = osMutexNew(&s_mutex_attr);
     }
+    if (s_mutex_battery_stats == NULL) {
+        s_mutex_battery_stats = osMutexNew(&s_mutex_attr);
+    }
 
     // Inicializamos las estructuras a cero por seguridad
     memset(&s_vehiculo_state, 0, sizeof(Vehicle_Data_t));
@@ -166,20 +174,23 @@ void b_Broker_Init(void) {
     memset(&s_telemetry_data, 0, sizeof(AMS_Telemetry_Data_t));
     memset(&s_bms_data, 0, sizeof(AMS_BMS_Data_t));
     memset(&s_powertrain_data, 0, sizeof(AMS_Powertrain_Data_t));
+    memset(&s_battery_stats, 0, sizeof(AMS_BatteryStats_Data_t));
 
-    s_vehiculo_last_update_ms   = 0;
-    s_adc_last_update_ms        = 0;
-    s_gps_last_update_ms        = 0;
-    s_telemetry_last_update_ms  = 0;
-    s_bms_last_update_ms        = 0;
-    s_powertrain_last_update_ms = 0;
+    s_vehiculo_last_update_ms     = 0;
+    s_adc_last_update_ms          = 0;
+    s_gps_last_update_ms          = 0;
+    s_telemetry_last_update_ms    = 0;
+    s_bms_last_update_ms          = 0;
+    s_powertrain_last_update_ms   = 0;
+    s_battery_stats_last_update_ms = 0;
 
-    s_vehiculo_has_data   = false;
-    s_adc_has_data        = false;
-    s_gps_has_data        = false;
-    s_telemetry_has_data  = false;
-    s_bms_has_data        = false;
-    s_powertrain_has_data = false;
+    s_vehiculo_has_data     = false;
+    s_adc_has_data          = false;
+    s_gps_has_data          = false;
+    s_telemetry_has_data    = false;
+    s_bms_has_data          = false;
+    s_powertrain_has_data   = false;
+    s_battery_stats_has_data = false;
 
     s_is_initialized = true;
 }
@@ -255,6 +266,17 @@ bool b_Broker_Get_PowertrainData(AMS_Powertrain_Data_t *p_copy) {
     return prv_Broker_Read(s_mutex_powertrain, p_copy, &s_powertrain_data, sizeof(AMS_Powertrain_Data_t));
 }
 
+/* ========================= BATTERY STATS (PLACEHOLDER) ============ */
+
+bool b_Broker_Update_BatteryStats(const AMS_BatteryStats_Data_t *p_new_data) {
+    return prv_Broker_Write(s_mutex_battery_stats, &s_battery_stats, p_new_data, sizeof(AMS_BatteryStats_Data_t),
+                             &s_battery_stats_last_update_ms, &s_battery_stats_has_data);
+}
+
+bool b_Broker_Get_BatteryStats(AMS_BatteryStats_Data_t *p_copy) {
+    return prv_Broker_Read(s_mutex_battery_stats, p_copy, &s_battery_stats, sizeof(AMS_BatteryStats_Data_t));
+}
+
 /* ========================= BMS DATA (PLACEHOLDER) ================ */
 
 bool b_Broker_Update_BMSData(const AMS_BMS_Data_t *p_new_data) {
@@ -282,6 +304,7 @@ bool b_Broker_Get_SafetyFlags(AMS_Safety_Flags_t *p_copy) {
     p_copy->b_bms_data_fresh        = s_bms_has_data         && (ui32_now_ms - s_bms_last_update_ms)         <= BROKER_MAX_AGE_BMS_MS;
     p_copy->b_telemetry_data_fresh  = s_telemetry_has_data   && (ui32_now_ms - s_telemetry_last_update_ms)   <= BROKER_MAX_AGE_TELEMETRY_MS;
     p_copy->b_powertrain_data_fresh = s_powertrain_has_data  && (ui32_now_ms - s_powertrain_last_update_ms)  <= BROKER_MAX_AGE_POWERTRAIN_MS;
+    p_copy->b_battery_stats_fresh   = s_battery_stats_has_data && (ui32_now_ms - s_battery_stats_last_update_ms) <= BROKER_MAX_AGE_BATTERY_STATS_MS;
 
     return true;
 }
@@ -298,6 +321,7 @@ bool b_Broker_Get_AllData(AMS_Data_t *p_copy) {
     b_ok &= b_Broker_Get_GPSData(&p_copy->gps);
     b_ok &= b_Broker_Get_TelemetryData(&p_copy->telemetry);
     b_ok &= b_Broker_Get_PowertrainData(&p_copy->powertrain);
+    b_ok &= b_Broker_Get_BatteryStats(&p_copy->battery_stats);
     b_ok &= b_Broker_Get_SafetyFlags(&p_copy->safety);
 
     return b_ok;

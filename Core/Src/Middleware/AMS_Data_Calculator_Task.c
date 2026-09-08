@@ -23,6 +23,14 @@ void vd_Calculator_Task_Init(void) {
 void vd_Calculator_Manager_TaskProcess(void) {
     AMS_TelemetryAccumulator_t acc = {0};
 
+    /* TODO: seed lifetime baselines here once AMS_Persistent_Config_t has a
+     * flash schema for historic distance/max-speed/max-accel (not decided
+     * yet). Until then acc's baseline_* fields stay 0 (see the {0} init
+     * above), which is a safe default: b_TelemetryCalc_ProcessFix() reports
+     * lifetime == session on every boot rather than silently guessing.
+     *   vd_TelemetryCalc_SeedLifetime(&acc, cfg.distance_m, cfg.max_vel, ...);
+     */
+
     for (;;) {
         vd_LED_Manager_Process();
 
