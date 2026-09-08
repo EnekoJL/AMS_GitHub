@@ -229,7 +229,13 @@ int main(void)
   GPS_TaskHandle = osThreadNew(GPS_Start_Task, NULL, &GPS_Task_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
-	/* add threads, ... */
+#if TASK_FLASH_MEMO_ENABLE
+  /* Must run before osKernelStart(): other tasks read AMS_Persistent_Config_t
+   * from the Broker as soon as they start, with no guarantee the Flash task
+   * has run first (all tasks share the same priority). Flash HAL reads don't
+   * need the scheduler running, so load it here instead. */
+  vd_Persist_Task_Init();
+#endif
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -1122,7 +1128,7 @@ void Flash_Memory_Start(void *argument)
 {
   /* USER CODE BEGIN Flash_Memory_Start */
 #if TASK_FLASH_MEMO_ENABLE
-	vd_Persist_Task_Init();
+	/* vd_Persist_Task_Init() already ran in main() before osKernelStart() */
 	vd_Persist_TaskProcess();
 #else
 	osThreadExit();

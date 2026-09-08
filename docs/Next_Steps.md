@@ -29,32 +29,22 @@ pick this back up without re-deriving context.
 - Fixed `Algorithms_Sensors_ProcessVoltages()` reading hardcoded STM32 ROM
   addresses directly (would've segfaulted on host, violated the
   hardware-free Domain Logic rule) — now takes calibration values as params.
+- Fixed the Flash boot-order race: `vd_Persist_Task_Init()` now runs from
+  `main()` before `osKernelStart()` instead of from inside
+  `Flash_Memory_Start()`'s task body, so `AMS_Persistent_Config_t` is loaded
+  before any other task can read it. Doc and code now agree
+  (`AMS_Flash_Task/README.md`, `AMS_Flash_Task.h`).
 
 ## Open items, in recommended order
 
-### 1. Flash boot-order race (real bug, not yet fixed)
-
-`vd_Persist_Task_Init()` is called from inside `Flash_Memory_Start()` — a
-FreeRTOS task body — which only runs *after* `osKernelStart()`. All 6 tasks
-are created at the same priority, so nothing guarantees the Flash task
-populates `AMS_Persistent_Config_t` in the Broker before another task reads
-it. Worst case: a task reads SOC as 0% because Flash hasn't loaded the real
-value yet. `AMS_Flash_Task/README.md` and the code disagree on this (doc
-says "before the scheduler starts").
-
-**Fix:** call `vd_Persist_Task_Init()` from `main()` before
-`osKernelStart()`, matching the doc. Flash HAL reads don't need the
-scheduler running. Small change, one call site to move (`main.c` +
-`AMS_Flash_Task.c`/`.h`).
-
-### 2. CI — tests aren't run automatically
+### 1. CI — tests aren't run automatically
 
 `./executeTests.sh` only runs when someone remembers to run it. Nothing
 gates a PR or push. A GitHub Actions workflow (`ubuntu-latest`, install
 Ruby + `gem install ceedling`, run `ceedling test:all`) would close this
 cheaply — no self-hosted runner needed, this is a host-side build.
 
-### 3. Real BMS producer task
+### 2. Real BMS producer task
 
 The whole safety-tier push this session was motivated by wanting a real
 place for battery/BMS safety data — but `AMS_BMS_Data_t` is still a

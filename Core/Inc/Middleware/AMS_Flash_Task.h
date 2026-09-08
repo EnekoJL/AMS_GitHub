@@ -4,11 +4,18 @@
  *          Circular-buffer read/write of records in internal Flash.
  *          Communicates with the DataBroker to load and save persistent config.
  *
- * Usage (from main.c task entry):
- *   void Flash_Memory_Start(void *argument) {
- *       vd_Persist_Task_Init();
- *       vd_Persist_TaskProcess();
- *   }
+ * Usage:
+ *   vd_Persist_Task_Init() must run from main(), before osKernelStart() —
+ *   not from the task body — so the Broker holds real persisted config
+ *   before any other task can read it.
+ *     main() {
+ *         ...
+ *         vd_Persist_Task_Init();
+ *         osKernelStart();
+ *     }
+ *     void Flash_Memory_Start(void *argument) {
+ *         vd_Persist_TaskProcess();
+ *     }
  *
  * @author  Eneko Juanena
  * @date    11 de Marzo de 2026
@@ -23,14 +30,16 @@
  * @brief Initializes the Flash persistence subsystem for this task.
  *        Scans Flash sectors, loads the latest valid record into the DataBroker
  *        (or loads defaults if Flash is blank), and prints a boot diagnostic.
- *        Must be called once at the start of Flash_Memory_Start() before the task loop.
+ *        Must be called once from main(), before osKernelStart() — not from
+ *        the task body — so the Broker holds real persisted config before
+ *        any other task starts reading it.
  */
 void vd_Persist_Task_Init(void);
 
 /**
  * @brief Infinite RTOS loop for the Flash persistence task.
  *        Placeholder for future scheduled save logic (e.g. periodic SOC save).
- *        Must be called from Flash_Memory_Start() after vd_Persist_Task_Init().
+ *        Assumes vd_Persist_Task_Init() already ran in main().
  */
 void vd_Persist_TaskProcess(void);
 
