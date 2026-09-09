@@ -5,6 +5,8 @@ A continuación se detalla la configuración de Hardware, periféricos y pines u
 
 Para acceder a los Datasheets y esquemas completos, consulta el [Drive de Hardware](./docs/hardware_links.md).
 
+Para entender la arquitectura del firmware (capas, Data Broker, diagramas de flujo) consulta [`docs/Architecture_Overview.md`](./docs/Architecture_Overview.md). Para ver qué tarea (FreeRTOS task) hace qué, con su fichero fuente, flag de activación, prioridad y a qué struct del Broker escribe, consulta el índice en [`docs/Tasks/README.md`](./docs/Tasks/README.md).
+
 ---
 
 ## 1. Periféricos y Configuración de Pines
