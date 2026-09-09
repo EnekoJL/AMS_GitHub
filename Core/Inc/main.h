@@ -165,6 +165,12 @@ void Error_Handler(void);
 #define SAI1_MCLKA_GPIO_Port GPIOG
 #define LED1_Pin GPIO_PIN_6
 #define LED1_GPIO_Port GPIOG
+/* BMS (LTC6813) chip-select — SCK/MISO/MOSI (PD3/PB14/PB15) are configured
+ * as SPI2 alternate function inside MX_SPI2_Init()/HAL_SPI_MspInit(), not
+ * here as plain GPIO defines, same as every other SPI/UART/CAN pin in this
+ * file. See Drivers_Custom/AMS_bms_driver.h for the full wiring note. */
+#define BMS_SPI_CS_Pin GPIO_PIN_6
+#define BMS_SPI_CS_GPIO_Port GPIOH
 #define QSPI_BK1_IO2_Pin GPIO_PIN_7
 #define QSPI_BK1_IO2_GPIO_Port GPIOF
 #define QSPI_BK1_IO3_Pin GPIO_PIN_6

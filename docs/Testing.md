@@ -42,13 +42,14 @@ command.
 | `test/test_AMS_charge_algorithms.c` | 6 | `Algorithms/AMS_charge_algorithms.c` — coulomb counting (Ah discharged/charged, session + lifetime). No mocks. |
 | `test/test_AMS_thermal_algorithms.c` | 4 | `Algorithms/AMS_thermal_algorithms.c` — max/min/avg/delta cell temperature, this-sample and session-worst. No mocks. |
 | `test/test_AMS_current_algorithms.c` | 5 | `Algorithms/AMS_current_algorithms.c` — peak discharge/charge current, session + lifetime. No mocks. |
+| `test/test_AMS_bms_safety_algorithms.c` | 10 | `Algorithms/AMS_bms_safety_algorithms.c` — per-cell UV/OV debounce, NTC voltage→temperature lookup/interpolation/clamping. No mocks. |
 | `test/test_AMS_DataBroker.c` | 16 | `Middleware/AMS_DataBroker.c` — mutex acquire/release per domain (all 8), the 50ms timeout + fault counter, per-domain freshness (`AMS_Safety_Flags_t`), `Get_AllData()`'s fixed visit order. Mocks `cmsis_os.h`. |
 | `test/test_AMS_Flash_Task.c` | 7 | `Middleware/AMS_Flash_Task.c` — sector scanning, CRC32 record validation, wear-leveling sector selection (which of the two sectors wins on boot). Mocks the flash driver + the Broker. |
 | `test/test_AMS_Led_Task.c` | 8 | `Middleware/AMS_Led_Task.c` — the ON/OFF/TOGGLE/BLINK state machine, per-channel independence, blink-deadline expiry. Mocks `AMS_led_driver.h` + `HAL_GetTick`. |
 | `test/test_AMS_CAN_Task.c` | 4 | `parse_inverter_status()` — the CAN→RPM parser, including a Broker-write-failure path. See "Testing a `static` function" below for how this one works without touching the original file. |
 | `test/test_AMS_gps_driver.c` | 4 | `Drivers_Custom/AMS_gps_driver.c` — the DMA-vs-interrupt reception fallback (USART6 has a DMA stream wired, USART3 doesn't). Mocks `HAL_UARTEx_ReceiveToIdle_DMA/IT` via `main.h`. |
 
-**Total: 82 tests, all passing.**
+**Total: 92 tests, all passing.**
 
 ### Not covered yet, and why
 
@@ -57,7 +58,8 @@ logic that's been extracted out of them. Concretely still untested:
 `vd_CAN_Manager_TaskProcess()`'s queue-drain + button-TX loop,
 `vd_GPS_Manager_TaskProcess()`'s queue-drain + multi-sentence-split loop,
 `AMS_ADC_Task.c`'s ISR/shadow-buffer handling, and
-`AMS_Algorithms_Task.c`'s/`AMS_Logger_Task.c`'s outer `for(;;)` bodies.
+`AMS_Algorithms_Task.c`'s/`AMS_Logger_Task.c`'s/`AMS_BMS_Task.c`'s outer
+`for(;;)` bodies.
 These all block forever on `osMessageQueueGet`/`osDelay` inside an infinite
 loop with no way to run "one iteration" and get control back — the same
 reason GPS/telemetry math used to be untestable until it was pulled out into
@@ -67,10 +69,12 @@ way is possible but is a production-code change worth asking about first,
 not doing silently.
 
 `AMS_BMS_Data_t`'s and `AMS_BatteryStats_Data_t`'s broker plumbing
-(write/read/freshness) is tested inside `test_AMS_DataBroker.c`, but there
-is no producer task for either yet (see
-`Architecture_Overview.md`), so there's nothing further to unit-test there
-until a BMS driver/CAN parser exists.
+(write/read/freshness) is tested inside `test_AMS_DataBroker.c`.
+`AMS_BMS_Task`'s own logic (`b_BMS_Driver_Measure`, `b_BMS_Driver_Init`) is
+not unit-tested — it's a thin HAL/vendor-library wrapper with no pure logic
+left to extract (see `docs/Tasks/AMS_BMS_Task/README.md`); the math it
+feeds (`b_BmsSafety_CheckCellVoltage`, NTC lookup) is tested separately in
+`test_AMS_bms_safety_algorithms.c` above.
 
 ## How this is wired together
 

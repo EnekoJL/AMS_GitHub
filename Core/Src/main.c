@@ -33,6 +33,7 @@
 #include "Middleware/AMS_Flash_Task.h"
 #include "Middleware/AMS_GPS_Task.h"
 #include "Middleware/AMS_Algorithms_Task.h"
+#include "Middleware/AMS_BMS_Task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -57,6 +58,8 @@ DMA_HandleTypeDef hdma_adc1;
 DMA_HandleTypeDef hdma_adc2;
 
 CAN_HandleTypeDef hcan2;
+
+SPI_HandleTypeDef hspi2;
 
 SD_HandleTypeDef hsd;
 
@@ -112,6 +115,13 @@ const osThreadAttr_t GPS_Task_attributes = {
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for Task_BMS */
+osThreadId_t Task_BMSHandle;
+const osThreadAttr_t Task_BMS_attributes = {
+  .name = "Task_BMS",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -128,12 +138,14 @@ static void MX_TIM2_Init(void);
 static void MX_SDIO_SD_Init(void);
 static void MX_CAN2_Init(void);
 static void MX_USART6_UART_Init(void);
+static void MX_SPI2_Init(void);
 void StartDefaultTask(void *argument);
 void ADC_Start(void *argument);
 void SD_Card_Start(void *argument);
 void CAN_Start(void *argument);
 void Flash_Memory_Start(void *argument);
 void GPS_Start_Task(void *argument);
+void BMS_Start(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -183,6 +195,7 @@ int main(void)
   MX_FATFS_Init();
   MX_CAN2_Init();
   MX_USART6_UART_Init();
+  MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
 
 	/* --- Shared infrastructure init (must run before any task) --- */
@@ -250,6 +263,11 @@ int main(void)
 #if (TASK_GPS_ENABLE == 1)
   /* creation of GPS_Task */
   GPS_TaskHandle = osThreadNew(GPS_Start_Task, NULL, &GPS_Task_attributes);
+#endif
+
+#if (TASK_BMS_ENABLE == 1)
+  /* creation of Task_BMS */
+  Task_BMSHandle = osThreadNew(BMS_Start, NULL, &Task_BMS_attributes);
 #endif
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -720,6 +738,35 @@ static void MX_USART6_UART_Init(void)
 }
 
 /**
+  * @brief SPI2 Initialization Function — LTC6813 BMS.
+  *        Same register settings as Test_4_09_2025's spi_stm32f4.c
+  *        (NSS software-controlled: chip-select is the plain GPIO output
+  *        BMS_SPI_CS_Pin/PH6, toggled by Drivers_Custom/AMS_bms_driver.c,
+  *        not by this peripheral).
+  * @param None
+  * @retval None
+  */
+static void MX_SPI2_Init(void)
+{
+  hspi2.Instance = SPI2;
+  hspi2.Init.Mode = SPI_MODE_MASTER;
+  hspi2.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi2.Init.CLKPolarity = SPI_POLARITY_HIGH;
+  hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
+  hspi2.Init.NSS = SPI_NSS_SOFT;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi2.Init.CRCPolynomial = 10;
+  if (HAL_SPI_Init(&hspi2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
@@ -777,6 +824,11 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level — BMS SPI2 chip-select, idle HIGH
+   * (LTC6813 CS is active-low; must be deselected before MX_SPI2_Init()
+   * or any BMS driver call, hence set here in MX_GPIO_Init()). */
+  HAL_GPIO_WritePin(BMS_SPI_CS_GPIO_Port, BMS_SPI_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, OTG_FS1_PowerSwitchOn_Pin|EXT_RESET_Pin, GPIO_PIN_RESET);
@@ -914,6 +966,15 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED4_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : BMS_SPI_CS_Pin (PH6) — LTC6813 chip-select, plain
+   * GPIO output, software-driven (SPI2 NSS=SOFT). See
+   * Drivers_Custom/AMS_bms_driver.h for the full wiring note. */
+  GPIO_InitStruct.Pin = BMS_SPI_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(BMS_SPI_CS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : D23_Pin D21_Pin D22_Pin SDNE0_Pin
                            SDCKE0_Pin D20_Pin D17_Pin D19_Pin
@@ -1183,6 +1244,25 @@ void GPS_Start_Task(void *argument)
 	osThreadExit();
 #endif
   /* USER CODE END GPS_Start_Task */
+}
+
+/* USER CODE BEGIN Header_BMS_Start */
+/**
+ * @brief Function implementing the Task_BMS thread.
+ * @param argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_BMS_Start */
+void BMS_Start(void *argument)
+{
+  /* USER CODE BEGIN BMS_Start */
+#if TASK_BMS_ENABLE
+	vd_BMS_Task_Init(&hspi2);
+	vd_BMS_Manager_TaskProcess();
+#else
+	osThreadExit();
+#endif
+  /* USER CODE END BMS_Start */
 }
 
 /**

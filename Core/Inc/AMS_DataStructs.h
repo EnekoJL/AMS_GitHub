@@ -144,11 +144,14 @@ typedef struct {
  *        isn't defined yet (see the TODO there) — until it is, lifetime ==
  *        session on every boot, which is a safe default, not a bug.
  *
- *        Written by AMS_Algorithms_Task (current/charge sections — see
- *        that file's header). Effectively still a placeholder in practice:
- *        its only input, AMS_BMS_Data_t.i32_pack_current_mA, is itself a
- *        placeholder with no producer (no BMS driver/task built yet), so
- *        this folds zeros until that exists.
+ *        Written by AMS_Algorithms_Task (current/charge/thermal sections —
+ *        see that file's header).
+ *          - charge/current: still fold zero in practice — their input,
+ *            AMS_BMS_Data_t.i32_pack_current_mA, is still a placeholder
+ *            (needs a pack current shunt/Hall sensor, not chosen yet).
+ *          - thermal: real as of AMS_BMS_Task existing — folds
+ *            AMS_BMS_Data_t.i16_cell_temp_cC[], written every ~250ms from
+ *            the LTC6813's NTC channels.
  */
 typedef struct {
     uint32_t ui32_session_discharged_mAh;
@@ -188,24 +191,60 @@ typedef struct {
     AMS_CurrentStats_t  current;
 } AMS_BatteryStats_Data_t;
 
+/* LTC6813 pack geometry — 2 ICs daisy-chained on SPI2, 18 cell channels and
+ * 8 usable NTC channels each (GPIO5/channel index 5 is Vref2, not a sensor).
+ * Ported from Test_4_09_2025's spi_stm32f4.c (TOTAL_IC=2). Revise if the
+ * real pack uses a different IC count/wiring. */
+#define BMS_TOTAL_IC        2
+#define BMS_CELLS_PER_IC    18
+#define BMS_TEMP_CH_PER_IC  8
+#define BMS_TOTAL_CELLS     (BMS_TOTAL_IC * BMS_CELLS_PER_IC)
+#define BMS_TOTAL_TEMP_CH   (BMS_TOTAL_IC * BMS_TEMP_CH_PER_IC)
+
+/** @brief Bit assignments for AMS_BMS_Data_t.ui32_fault_flags. */
+#define BMS_FAULT_CELL_VOLTAGE  (1u << 0)  /**< A cell is <=2.8V or >=4.3V,
+                                             *   confirmed over 4 consecutive
+                                             *   samples — see
+                                             *   Algorithms/AMS_bms_safety_algorithms.c */
+
 /**
  * @brief Battery Management System snapshot (pack-level safety data).
- *        PLACEHOLDER: no task populates this yet (no BMS driver/CAN parser
- *        exists in this project as of this writing). Type is defined now so
- *        the Broker's storage/API shape is settled before that task exists.
- *        Fields below are typical BMS values — revise once the real BMS
- *        interface (CAN IDs, fault bit meanings) is known.
+ *        Written by AMS_BMS_Task (LTC6813 over SPI2) — see that task's
+ *        README. Not every field has a producer yet:
+ *          - Per-cell voltages/temps, min/max cell+id, fault flags: real,
+ *            written every BMS_Task cycle (~250ms).
+ *          - i32_pack_current_mA / soc_percent_x10: still placeholders.
+ *            The LTC6813 measures cell voltage and GPIO/NTC temperature,
+ *            not pack current — pack current is delivered over CAN (from
+ *            wherever the current sensor lives on the bus), not by this
+ *            task. AMS_CAN_Task doesn't parse a current frame yet.
+ *
+ *            WARNING for whoever wires that CAN parser in: it must NOT
+ *            write into THIS struct. AMS_BMS_Task already owns
+ *            AMS_BMS_Data_t as sole writer (one-writer-per-struct, see
+ *            Architecture_Overview.md) and overwrites the whole snapshot,
+ *            i32_pack_current_mA included, every ~250ms — a second writer
+ *            here reproduces the exact Vehicle_Data_t lost-update race
+ *            that struct was split to fix. Give pack current its own
+ *            domain/mutex written only by AMS_CAN_Task (or fold it into
+ *            AMS_Powertrain_Data_t if it comes from the same CAN node as
+ *            inverter RPM), then have AMS_Algorithms_Task's Current/Charge
+ *            sections read from there instead of AMS_BMS_Data_t. See
+ *            docs/Next_Steps.md.
  */
 typedef struct {
-    uint32_t ui32_pack_voltage_mV;
-    int32_t  i32_pack_current_mA;    // signed: negative = discharging
+    uint32_t ui32_pack_voltage_mV;    /* sum of all cells, real */
+    int32_t  i32_pack_current_mA;     /* signed: negative = discharging. STILL A PLACEHOLDER. */
     uint16_t ui16_min_cell_mV;
     uint16_t ui16_max_cell_mV;
     uint8_t  ui8_min_cell_id;
     uint8_t  ui8_max_cell_id;
     int16_t  i16_max_cell_temp_cC;
-    uint16_t soc_percent_x10;
-    uint32_t ui32_fault_flags;        // bitfield, TBD once real BMS fault codes are known
+    uint16_t soc_percent_x10;         /* STILL A PLACEHOLDER — needs real pack current first */
+    uint32_t ui32_fault_flags;        /* see BMS_FAULT_* above */
+
+    uint16_t ui16_cell_mV[BMS_TOTAL_CELLS];         /* per-cell voltage, index = physical position */
+    int16_t  i16_cell_temp_cC[BMS_TOTAL_TEMP_CH];   /* per-channel NTC temp, feeds b_ThermalCalc_Fold() */
 } AMS_BMS_Data_t;
 
 /**

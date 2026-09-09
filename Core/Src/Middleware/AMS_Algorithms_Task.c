@@ -31,12 +31,9 @@
  *          latest, not every sample" property, but GPS fixes arrive far
  *          slower than this loop polls, so it's a non-issue there.
  *
- *          THERMAL is deliberately NOT included yet: AMS_BMS_Data_t only
- *          carries a single aggregate i16_max_cell_temp_cC, not a per-cell
- *          array — b_ThermalCalc_Fold() needs the whole array. Slot it in
- *          as a fifth section, same shape as CURRENT/SOC below, once
- *          AMS_BMS_Data_t carries real per-cell readings (needs the BMS
- *          hardware's actual cell count, which isn't chosen yet).
+ *          THERMAL (5th section, below) reads AMS_BMS_Data_t.i16_cell_temp_cC[],
+ *          written by AMS_BMS_Task every ~250ms — real as of that task
+ *          existing, no longer a placeholder like CURRENT/SOC above.
  */
 
 #include "Middleware/AMS_Algorithms_Task.h"
@@ -45,6 +42,7 @@
 #include "Algorithms/AMS_current_algorithms.h"
 #include "Algorithms/AMS_charge_algorithms.h"
 #include "Algorithms/AMS_telemetry_algorithms.h"
+#include "Algorithms/AMS_thermal_algorithms.h"
 #include "cmsis_os.h"
 #include <stdio.h>
 #include <stdlib.h> /* abs() */
@@ -62,6 +60,7 @@ void vd_Algorithms_Manager_TaskProcess(void)
     AMS_CurrentAccumulator_t   current_acc   = {0};
     AMS_ChargeAccumulator_t    charge_acc    = {0};
     AMS_TelemetryAccumulator_t telemetry_acc = {0};
+    AMS_ThermalAccumulator_t   thermal_acc   = {0};
 
     for (;;) {
         /* -----------------------------------------------------------
@@ -140,7 +139,26 @@ void vd_Algorithms_Manager_TaskProcess(void)
         }
 
         /* -----------------------------------------------------------
-         * 4. LED — drive the ON/OFF/TOGGLE/BLINK state machine. No Broker
+         * 4. THERMAL — max/min/avg/delta cell temperature, session-worst.
+         *    Input: AMS_BMS_Data_t.i16_cell_temp_cC[] (Broker, real —
+         *    written by AMS_BMS_Task from the LTC6813's NTC channels).
+         * ----------------------------------------------------------- */
+        {
+            AMS_BMS_Data_t bms = {0};
+            if (b_Broker_Get_BMSData(&bms)) {
+                AMS_ThermalStats_t thermal_stats = {0};
+                if (b_ThermalCalc_Fold(&thermal_acc, bms.i16_cell_temp_cC, BMS_TOTAL_TEMP_CH, &thermal_stats)) {
+                    AMS_BatteryStats_Data_t stats = {0};
+                    if (b_Broker_Get_BatteryStats(&stats)) {
+                        stats.thermal = thermal_stats;
+                        b_Broker_Update_BatteryStats(&stats);
+                    }
+                }
+            }
+        }
+
+        /* -----------------------------------------------------------
+         * 5. LED — drive the ON/OFF/TOGGLE/BLINK state machine. No Broker
          *    domain of its own; purely local state inside AMS_Led_Task.c.
          * ----------------------------------------------------------- */
         vd_LED_Manager_Process();

@@ -13,6 +13,9 @@
  *                                      default, DMA on USART6 in production
  *                                      — see the comment at vd_GPS_Task_Init()'s
  *                                      call site in main.c)
+ *    - TASK_BMS_ENABLE          : LTC6813 BMS task (SPI2 — see
+ *                                      Drivers_Custom/AMS_bms_driver.h for
+ *                                      pin wiring)
  *
  *  SUB-FEATURE FLAGS:
  *    - FEATURE_FLASH_WRITE_ENABLE    : When 0, b_Persist_SaveConfig() returns
@@ -41,6 +44,7 @@
 #define TASK_CAN_ENABLE          0  /**< CAN bus task                      */
 #define TASK_FLASH_MEMO_ENABLE   0  /**< Flash persistence task            */
 #define TASK_GPS_ENABLE          0  /**< GPS NMEA task (USART6, DMA)       */
+#define TASK_BMS_ENABLE          0  /**< LTC6813 BMS task (SPI2)           */
 
 /* =========================================================================
  * Sub-feature enables

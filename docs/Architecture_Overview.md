@@ -83,8 +83,8 @@ Every struct in the Broker has exactly **one writer task**. Any other task may r
 | `AMS_ADC_Data_t` | Raw + converted ADC readings | `AMS_ADC_Task` | Logger | 300 ms |
 | `GPS_Data_t` | Parsed NMEA position/speed | `AMS_GPS_Task` | Algorithms Task, Logger | 2000 ms |
 | `AMS_Telemetry_Data_t` | Derived GPS metrics (distance, max speed, accel, session + lifetime) | `AMS_Algorithms_Task` | Logger | 300 ms |
-| `AMS_BMS_Data_t` | Battery pack safety data | *(none yet — placeholder, no BMS task exists)* | — | 500 ms |
-| `AMS_BatteryStats_Data_t` | Derived Ah in/out, thermal extremes, peak current — composes `AMS_ChargeStats_t`/`AMS_ThermalStats_t`/`AMS_CurrentStats_t`, each the output of one Algorithms module (`AMS_charge_algorithms.c`, `AMS_thermal_algorithms.c`, `AMS_current_algorithms.c`) | `AMS_Algorithms_Task` (current/charge sections; thermal not wired yet — see that task's README) | Logger | 1500 ms |
+| `AMS_BMS_Data_t` | Battery pack safety data — per-cell voltage/temp arrays, fault flags. `i32_pack_current_mA`/`soc_percent_x10` still placeholders — pack current arrives over CAN, no parser yet, and per one-writer-per-struct it must NOT be written here once one exists (see the WARNING on this struct in AMS_DataStructs.h) | `AMS_BMS_Task` (LTC6813 over SPI2) | Algorithms Task, Logger | 500 ms |
+| `AMS_BatteryStats_Data_t` | Derived Ah in/out, thermal extremes, peak current — composes `AMS_ChargeStats_t`/`AMS_ThermalStats_t`/`AMS_CurrentStats_t`, each the output of one Algorithms module (`AMS_charge_algorithms.c`, `AMS_thermal_algorithms.c`, `AMS_current_algorithms.c`) | `AMS_Algorithms_Task` (current/charge still fold zero — no pack-current producer; thermal real as of `AMS_BMS_Task` — see that task's README) | Logger | 1500 ms |
 | `AMS_Persistent_Config_t` | Flash-backed config (SOC, cycle count) | `AMS_Flash_Task` | Logger | n/a (see Flash Task doc) |
 
 **Every struct has exactly one writer today.** `Vehicle_Data_t` and
@@ -100,7 +100,7 @@ a second writer to an existing struct, split the struct instead.
 
 ### Safety flags (freshness)
 
-`b_Broker_Get_SafetyFlags()` returns an `AMS_Safety_Flags_t` — one `fresh`/`stale` bool per domain above, computed by comparing each domain's last-write timestamp against its "max age" column. **This is flag-only**: the Broker does not shut anything down, override a task, or take any action when a domain goes stale — it only reports it. Each consuming task decides what a stale flag means for it (log a warning, hold last known value, refuse to act, etc). `AMS_BMS_Data_t` will always read stale until a producer task exists and starts calling `b_Broker_Update_BMSData()`.
+`b_Broker_Get_SafetyFlags()` returns an `AMS_Safety_Flags_t` — one `fresh`/`stale` bool per domain above, computed by comparing each domain's last-write timestamp against its "max age" column. **This is flag-only**: the Broker does not shut anything down, override a task, or take any action when a domain goes stale — it only reports it. Each consuming task decides what a stale flag means for it (log a warning, hold last known value, refuse to act, etc). `AMS_BMS_Data_t` reads fresh once `AMS_BMS_Task` is enabled (`TASK_BMS_ENABLE` in `AMS_task_config.h`, default off until bench-tested).
 
 `b_Broker_Get_AllData()` fetches every domain (vehicle, bms, sensors, gps, telemetry, powertrain, battery_stats, safety) in one call, as an `AMS_Data_t`. It does **not** introduce a single global lock — internally it just calls each individual Getter in sequence, so it is not an atomic all-or-nothing snapshot across domains.
 

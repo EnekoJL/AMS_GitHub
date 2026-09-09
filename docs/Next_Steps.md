@@ -118,6 +118,24 @@ pick this back up without re-deriving context.
   integrated. Revisit if that turns out to matter once real BMS hardware
   exists. Thermal is still not wired anywhere (see item #2 below — needs a
   per-cell array `AMS_BMS_Data_t` doesn't have yet).
+- **Real BMS producer task**, ported from a separate working prototype
+  (`Test_4_09_2025`, LTC6813 x2 over SPI2): `Drivers_Vendor/LTC681x_LTC6813/`
+  (Analog Devices library, untouched), `Drivers_Custom/AMS_bms_driver.c`
+  (HAL/SPI/CS glue, no business logic), `Algorithms/AMS_bms_safety_algorithms.c`
+  (pure NTC lookup + per-cell UV/OV debounce, tested on host), and
+  `Middleware/AMS_BMS_Task.c` — single writer of `AMS_BMS_Data_t`, 250ms
+  poll. `AMS_Algorithms_Task` gained a 5th THERMAL section reading the new
+  per-cell temp array. `TASK_BMS_ENABLE` in `AMS_task_config.h` defaults to
+  0 until bench-tested against the real wiring below. Fixed a real bug
+  found while porting: the original project's PD3 pin was double-booked
+  (labelled `"SS_BMS"` in its `.ioc` but actually configured as the real
+  `SPI2_SCK` alternate function — chip-select never functioned there). New
+  wiring, confirmed with the team: SPI2 `PB14`=MISO `PB15`=MOSI `PD3`=SCK,
+  **`PH6`** = a real, dedicated GPIO chip-select. See
+  `docs/Tasks/AMS_BMS_Task/README.md`. Still not produced: pack current
+  (needs a separate shunt/Hall sensor — LTC6813 doesn't measure it) and any
+  LED fault indication (all 4 Discovery LEDs already claimed by other
+  signals — see that task's README for why none were reused).
 
 ## Open items, in recommended order
 
@@ -128,24 +146,38 @@ gates a PR or push. A GitHub Actions workflow (`ubuntu-latest`, install
 Ruby + `gem install ceedling`, run `ceedling test:all`) would close this
 cheaply — no self-hosted runner needed, this is a host-side build.
 
-### 2. Real BMS producer task
+### 2. BMS producer task — done for voltage/temp, pack current still open
 
-The whole safety-tier push this session was motivated by wanting a real
-place for battery/BMS safety data — but `AMS_BMS_Data_t` is still a
-placeholder with no producer. Nothing calls `b_Broker_Update_BMSData()`.
-This is a hardware/product decision (what BMS chip, CAN IDs or SPI/UART
-interface, what fault bits actually mean) more than a pure coding task —
-needs your input on the real BMS interface before it can be built.
+`AMS_BMS_Task` (LTC6813 x2, SPI2) now writes real per-cell voltage and
+temperature data every 250ms — see "What's done" above and
+`docs/Tasks/AMS_BMS_Task/README.md`. `TASK_BMS_ENABLE` defaults to 0 in
+`AMS_task_config.h`, needs bench-testing against the real SPI2/PH6 wiring
+before flipping to 1.
 
-Current and Charge/SOC (`b_CurrentCalc_Fold`, `b_ChargeCalc_Fold`) already
-fold inside `AMS_Algorithms_Task` today, reading the Broker's latest
-`AMS_BMS_Data_t.i32_pack_current_mA` — so once this task writes real
-current samples, those two just start producing real numbers, no further
-wiring needed. Thermal (`b_ThermalCalc_Fold`) is the one still unwired: it
-needs a per-cell temperature array, and `AMS_BMS_Data_t` only has one
-aggregate `i16_max_cell_temp_cC` field today — extend the struct with a
-real per-cell array (sized to the actual chosen hardware's cell count) and
-add a fifth section to `AMS_Algorithms_Task`, same shape as Current/Charge.
+What's still open: **pack current**. The LTC6813 measures cell voltage and
+GPIO/NTC temperature, not current — pack current is delivered over CAN
+(confirmed), but `AMS_CAN_Task.c` (currently only parses inverter RPM, ID
+`0x181`) doesn't parse a current frame yet. Needs the real CAN ID/scaling
+before it can be written.
+
+**Architecture note for whoever builds that parser**: it must NOT write
+into `AMS_BMS_Data_t.i32_pack_current_mA` directly. `AMS_BMS_Task` is
+already that struct's sole writer (one-writer-per-struct) and overwrites
+the whole snapshot every 250ms — a second writer there reproduces the
+exact `Vehicle_Data_t` lost-update race that struct was split to fix
+earlier this project (see `Architecture_Overview.md` section 4). Give pack
+current its own domain/mutex (or fold it into `AMS_Powertrain_Data_t` if
+it's the same CAN node as inverter RPM), and point
+`AMS_Algorithms_Task`'s Current/Charge sections at that instead — see the
+WARNING comment on `AMS_BMS_Data_t` in `AMS_DataStructs.h`. Until then,
+`AMS_Algorithms_Task`'s Current/Charge sections (`b_CurrentCalc_Fold`,
+`b_ChargeCalc_Fold`) keep folding zero, same as before.
+
+Also still open: no LED indicates a `BMS_FAULT_CELL_VOLTAGE` fault — all 4
+Discovery board LEDs are already claimed by other signals in this project.
+Needs a product decision (5th LED? arbitration on an existing one?), not
+a default worth guessing at — see the task README's "Not produced by this
+task" section.
 
 ### 3. Flash schema for historic/lifetime stats
 
