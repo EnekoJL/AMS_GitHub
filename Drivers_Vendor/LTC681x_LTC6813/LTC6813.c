@@ -64,6 +64,17 @@
 #include "LTC681x.h"
 #include "stdint.h"
 
+/* AMS project note: this file is Analog Devices' vendor library, kept
+ * verbatim (see docs/Tasks/AMS_BMS_Task/README.md) — not edited to silence
+ * its own warnings. These pragmas are compiler directives only, no
+ * behavior change, so the project can build with -Wall clean without
+ * touching third-party logic. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Warray-parameter"
+#pragma GCC diagnostic ignored "-Wreturn-type"
+
 /* Helper function to initialize register limits. */
 void LTC6813_init_reg_limits(
     uint8_t total_ic,  // Number of ICs in the system
@@ -732,3 +743,5 @@ void LTC6813_set_cfgrb_dcc_b(uint8_t nIC, cell_asic *ic, bool dccbits[]) {
     }
   }
 }
+
+#pragma GCC diagnostic pop

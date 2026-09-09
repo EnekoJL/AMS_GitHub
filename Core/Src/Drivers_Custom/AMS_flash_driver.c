@@ -36,13 +36,17 @@ bool b_Flash_WriteRecord(uint32_t address, const AMS_Flash_Record_t *p_record) {
 
     // 2. Escribir el registro palabra a palabra (32 bits = TYPEPROGRAM_WORD)
     //    STM32F469 requiere escritura en múltiplos de 4 bytes (word).
-    const uint32_t *p_src  = (const uint32_t *)p_record;
-    uint32_t        n_words = sizeof(AMS_Flash_Record_t) / sizeof(uint32_t);
+    //    AMS_Flash_Record_t es packed (alignment 1) — copiar cada palabra a
+    //    una variable local en vez de castear su puntero a uint32_t*, que
+    //    produciría un acceso potencialmente desalineado.
+    uint32_t n_words = sizeof(AMS_Flash_Record_t) / sizeof(uint32_t);
 
     for (uint32_t i = 0; i < n_words; i++) {
+        uint32_t word;
+        memcpy(&word, (const uint8_t *)p_record + (i * sizeof(uint32_t)), sizeof(uint32_t));
         status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,
                                    address + (i * 4u),
-                                   (uint64_t)p_src[i]);
+                                   (uint64_t)word);
         if (status != HAL_OK) {
             HAL_FLASH_Lock();
             return false;

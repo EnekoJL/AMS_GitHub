@@ -51,6 +51,19 @@
 #ifdef LINDUINO
 #include <Arduino.h>
 #endif
+
+/* AMS project note: this file is Analog Devices' vendor library, kept
+ * verbatim (see docs/Tasks/AMS_BMS_Task/README.md) — not edited to silence
+ * its own warnings. These pragmas are compiler directives only, no
+ * behavior change, so the project can build with -Wall clean without
+ * touching third-party logic. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Warray-parameter"
+#pragma GCC diagnostic ignored "-Wparentheses"
+#pragma GCC diagnostic ignored "-Wsequence-point"
+
 const uint16_t crc15Table[256] = {
     0x0,    0xc599, 0xceab, 0xb32,  0xd8cf, 0x1d56, 0x1664, 0xd3fd, 0xf407,
     0x319e, 0x3aac,  // precomputed CRC15 Table
@@ -2062,3 +2075,5 @@ void LTC681x_set_cfgr_ov(uint8_t nIC, cell_asic *ic, uint16_t ov) {
   ic[nIC].config.tx_data[2] = ic[nIC].config.tx_data[2] & 0x0F;
   ic[nIC].config.tx_data[2] = ic[nIC].config.tx_data[2] | ((0x000F & tmp) << 4);
 }
+
+#pragma GCC diagnostic pop

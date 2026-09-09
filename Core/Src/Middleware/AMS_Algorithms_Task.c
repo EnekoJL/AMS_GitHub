@@ -12,7 +12,7 @@
  *          keeping "where does derived data get (re)computed" in one place
  *          is easier for a rotating team to find than four scattered tasks.
  *          The actual math for each section still lives in its own
- *          Algorithms/*.c file — this file is orchestration only (read
+ *          Algorithms source file — this file is orchestration only (read
  *          Broker -> call algorithm -> write Broker), same as every other
  *          task in this codebase.
  *

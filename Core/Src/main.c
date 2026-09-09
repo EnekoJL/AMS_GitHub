@@ -320,7 +320,7 @@ int main(void)
             printf("HAL_CAN_AddTxMessage FAILED! Err: 0x%lx\r\n", hcan2.ErrorCode);
         }
     } else {
-        printf("No free mailboxes! State: 0x%lx, Err: 0x%lx\r\n", hcan2.State, hcan2.ErrorCode);
+        printf("No free mailboxes! State: 0x%lx, Err: 0x%lx\r\n", (unsigned long)hcan2.State, hcan2.ErrorCode);
         // Force an abort to clear the stuck mailboxes
         HAL_CAN_AbortTxRequest(&hcan2, CAN_TX_MAILBOX0 | CAN_TX_MAILBOX1 | CAN_TX_MAILBOX2);
     }
