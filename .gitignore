@@ -9,7 +9,6 @@
 # Build output directories
 Debug/
 Release/
-Test_4_09_2025/
 # ==========================================
 # Ceedling (host-side Unity/CMock unit tests)
 # ==========================================
