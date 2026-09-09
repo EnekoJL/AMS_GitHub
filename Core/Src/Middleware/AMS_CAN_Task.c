@@ -19,6 +19,7 @@
 #include "Drivers_Custom/AMS_can_driver.h"
 #include "cmsis_os.h"
 #include <stdio.h>
+#include <stdbool.h>
 
 /* --------------------------------------------------------------------------
  * TIPOS PRIVADOS
@@ -40,6 +41,9 @@ typedef struct {
 
 /* Queue de FreeRTOS con capacidad para 8 paquetes sin riesgo de pérdida */
 static osMessageQueueId_t s_can_rx_queue = NULL;
+
+/* Blue-button TX debounce state — edge-triggered, see BLOQUE 2 below. */
+static bool s_button_was_pressed = false;
 
 /* --------------------------------------------------------------------------
  * IMPLEMENTACIÓN PÚBLICA
@@ -136,8 +140,14 @@ void vd_CAN_Manager_TaskProcess(void) {
             }
         }
 
-        /* --- BLOQUE 2: TX bajo demanda (Boton Azul) --- */
-        if (HAL_GPIO_ReadPin(Boton_Azul_GPIO_Port, Boton_Azul_Pin) == GPIO_PIN_SET) {
+        /* --- BLOQUE 2: TX bajo demanda (Boton Azul) ---
+         * Disparo por flanco de subida, no por nivel: evita el doble envio
+         * mientras se mantiene pulsado sin bloquear este bucle esperando a
+         * que se suelte (esa espera bloqueante dejaba la cola RX de CAN sin
+         * drenar mientras el boton estuviera pulsado). El propio escaneo a
+         * 50Hz del bucle exterior actua como anti-rebote. */
+        bool button_pressed = (HAL_GPIO_ReadPin(Boton_Azul_GPIO_Port, Boton_Azul_Pin) == GPIO_PIN_SET);
+        if (button_pressed && !s_button_was_pressed) {
             if (u32_AMS_CAN_GetTxFreeLevel() > 0) {
                 uint8_t tx_data[8] = {0x0C, 0, 0, 0, 0, 0, 0, 0};
                 if (b_AMS_CAN_Transmit(0x201, tx_data, 8) == HAL_OK) {
@@ -145,11 +155,8 @@ void vd_CAN_Manager_TaskProcess(void) {
                     printf("[CAN TX] StdId=0x201 sent via Boton_Azul\r\n");
                 }
             }
-            /* Anti-rebote no bloqueante */
-            while (HAL_GPIO_ReadPin(Boton_Azul_GPIO_Port, Boton_Azul_Pin) == GPIO_PIN_SET) {
-                osDelay(20);
-            }
         }
+        s_button_was_pressed = button_pressed;
 
         /* Ceder CPU: escaneo a 50 Hz */
         osDelay(20);

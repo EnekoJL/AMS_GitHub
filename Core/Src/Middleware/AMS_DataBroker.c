@@ -220,13 +220,9 @@ bool b_Broker_Update_ADCData(const AMS_ADC_Data_t *p_new_data) {
 
 /* ================ IMPLEMENTACION: DATOS PERSISTENTES (FLASH) =========== */
 
-void vd_Broker_Set_PersistentConfig(const AMS_Persistent_Config_t *p_config) {
-    if (p_config == NULL || !s_is_initialized) return;
-
-    if (e_Broker_MutexAcquire(s_mutex_persistent) == osOK) {
-        memcpy(&s_persistent_config, p_config, sizeof(AMS_Persistent_Config_t));
-        osMutexRelease(s_mutex_persistent);
-    }
+bool b_Broker_Update_PersistentConfig(const AMS_Persistent_Config_t *p_config) {
+    return prv_Broker_Write(s_mutex_persistent, &s_persistent_config, p_config, sizeof(AMS_Persistent_Config_t),
+                             NULL, NULL);
 }
 
 bool b_Broker_Get_PersistentConfig(AMS_Persistent_Config_t *p_out) {

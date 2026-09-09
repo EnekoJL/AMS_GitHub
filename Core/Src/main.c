@@ -276,7 +276,7 @@ int main(void)
    * from the Broker as soon as they start, with no guarantee the Flash task
    * has run first (all tasks share the same priority). Flash HAL reads don't
    * need the scheduler running, so load it here instead. */
-  vd_Persist_Task_Init();
+  vd_Flash_Task_Init();
 #endif
   /* USER CODE END RTOS_THREADS */
 
@@ -291,43 +291,11 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
-  if (HAL_CAN_Start(&hcan2) != HAL_OK) {
-      printf("HAL_CAN_Start FAILED!\r\n");
-  } else {
-      printf("HAL_CAN_Start SUCCESS!\r\n");
-  }
-  CAN_TxHeaderTypeDef txHeader;
-  txHeader.StdId = 0x123;
-  txHeader.ExtId = 0;
-  txHeader.IDE = CAN_ID_STD;
-  txHeader.RTR = CAN_RTR_DATA;
-  txHeader.DLC = 8;
-  txHeader.TransmitGlobalTime = DISABLE;
-
-  uint8_t txData[8] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22};
-  uint32_t txMailbox;
-
-	while (1) {
+  while (1) {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    uint32_t free_level = HAL_CAN_GetTxMailboxesFreeLevel(&hcan2);
-    if (free_level > 0) {
-        if (HAL_CAN_AddTxMessage(&hcan2, &txHeader, txData, &txMailbox) == HAL_OK) {
-            printf("TX OK! Mailbox: %lu, Free: %lu\r\n", txMailbox, free_level);
-        } else {
-            printf("HAL_CAN_AddTxMessage FAILED! Err: 0x%lx\r\n", hcan2.ErrorCode);
-        }
-    } else {
-        printf("No free mailboxes! State: 0x%lx, Err: 0x%lx\r\n", (unsigned long)hcan2.State, hcan2.ErrorCode);
-        // Force an abort to clear the stuck mailboxes
-        HAL_CAN_AbortTxRequest(&hcan2, CAN_TX_MAILBOX0 | CAN_TX_MAILBOX1 | CAN_TX_MAILBOX2);
-    }
-    // Use a simple busy loop because HAL_Delay relies on SysTick
-    // which may be suspended or masked before osKernelStart() is called.
-    for(volatile uint32_t i = 0; i < 5000000; i++) {}
-	}
+  }
   /* USER CODE END 3 */
 }
 
@@ -1175,8 +1143,8 @@ void SD_Card_Start(void *argument)
 {
   /* USER CODE BEGIN SD_Card_Start */
 #if (TASK_SD_CARD_ENABLE == 1) || (FEATURE_LOGGER_PRINT_ENABLE == 1)
-	vd_Logger_Init();
-	vd_Logger_TaskProcess();
+	vd_Logger_Task_Init();
+	vd_Logger_Manager_TaskProcess();
 #else
 	osThreadExit();
 #endif
@@ -1213,8 +1181,8 @@ void Flash_Memory_Start(void *argument)
 {
   /* USER CODE BEGIN Flash_Memory_Start */
 #if TASK_FLASH_MEMO_ENABLE
-	/* vd_Persist_Task_Init() already ran in main() before osKernelStart() */
-	vd_Persist_TaskProcess();
+	/* vd_Flash_Task_Init() already ran in main() before osKernelStart() */
+	vd_Flash_Manager_TaskProcess();
 #else
 	osThreadExit();
 #endif

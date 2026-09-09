@@ -65,7 +65,7 @@ bool b_Broker_Update_ADCData(const AMS_ADC_Data_t *p_new_data);
  *         Llamado por el Persistence Manager al arrancar.
  * @param  p_config: Puntero a los datos a cargar.
  */
-void vd_Broker_Set_PersistentConfig(const AMS_Persistent_Config_t *p_config);
+bool b_Broker_Update_PersistentConfig(const AMS_Persistent_Config_t *p_config);
 
 /**
  * @brief  Obtiene una copia de la configuración persistente actual del DataBroker.

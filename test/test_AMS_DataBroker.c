@@ -83,7 +83,7 @@ void test_T00_before_init_every_function_fails_closed(void)
     TEST_ASSERT_FALSE(b_Broker_Get_BatteryStats(&stats));
     TEST_ASSERT_FALSE(b_Broker_Update_BatteryStats(&stats));
     TEST_ASSERT_FALSE(b_Broker_Get_PersistentConfig(&cfg));
-    vd_Broker_Set_PersistentConfig(&cfg); /* void — must not crash */
+    TEST_ASSERT_FALSE(b_Broker_Update_PersistentConfig(&cfg));
     TEST_ASSERT_FALSE(b_Broker_Get_SafetyFlags(&flags));
     TEST_ASSERT_FALSE(b_Broker_Get_AllData(&all));
 
@@ -388,7 +388,7 @@ void test_T09_persistent_config_roundtrip_uses_persistent_mutex(void)
     osMutexAcquire_IgnoreArg_timeout();
     osMutexRelease_ExpectAndReturn(FAKE_MTX_PERS, osOK);
 
-    vd_Broker_Set_PersistentConfig(&sent); /* void */
+    TEST_ASSERT_TRUE(b_Broker_Update_PersistentConfig(&sent));
 
     osMutexAcquire_ExpectAndReturn(FAKE_MTX_PERS, 0, osOK);
     osMutexAcquire_IgnoreArg_timeout();
@@ -504,7 +504,7 @@ void test_T13_null_pointer_calls_do_not_crash(void)
     TEST_ASSERT_FALSE(b_Broker_Get_BatteryStats(NULL));
     TEST_ASSERT_FALSE(b_Broker_Update_BatteryStats(NULL));
     TEST_ASSERT_FALSE(b_Broker_Get_PersistentConfig(NULL));
-    vd_Broker_Set_PersistentConfig(NULL); /* void — must not crash */
+    TEST_ASSERT_FALSE(b_Broker_Update_PersistentConfig(NULL));
     TEST_ASSERT_FALSE(b_Broker_Get_SafetyFlags(NULL));
     TEST_ASSERT_FALSE(b_Broker_Get_AllData(NULL));
 }

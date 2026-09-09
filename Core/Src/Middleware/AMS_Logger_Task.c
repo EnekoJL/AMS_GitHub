@@ -63,8 +63,8 @@ static void vd_print_banner(const char *p_colour, const char *p_title)
  * PUBLIC API
  * ========================================================================= */
 
-/* ---------- vd_Logger_Init ----------------------------------------------- */
-void vd_Logger_Init(void)
+/* ---------- vd_Logger_Task_Init ----------------------------------------------- */
+void vd_Logger_Task_Init(void)
 {
 #if (TASK_SD_CARD_ENABLE == 1)
     if (b_SD_Card_Mount()) {
@@ -84,7 +84,10 @@ void vd_Logger_Init(void)
                     "DIST_M,MAX_SPEED_KMH_X1000,AVG_SPEED_KMH_X1000,MAX_ACCEL_X1000,MAX_DECEL_X1000,"
                     "LIFETIME_DIST_M,LIFETIME_MAX_SPEED_KMH_X1000,LIFETIME_MAX_ACCEL_X1000,LIFETIME_MAX_DECEL_X1000,"
                     "BMS_PACK_MV,BMS_PACK_MA,BMS_MIN_CELL_MV,BMS_MAX_CELL_MV,BMS_MAX_TEMP_CC,BMS_SOC_X10,BMS_FAULTS,"
-                    "VEH_FRESH,ADC_FRESH,GPS_FRESH,BMS_FRESH,TELEM_FRESH,RPM_FRESH\n";
+                    "BATT_CHG_SESSION_DISCHARGED_MAH,BATT_CHG_SESSION_CHARGED_MAH,BATT_CHG_LIFETIME_DISCHARGED_MAH,BATT_CHG_LIFETIME_CHARGED_MAH,"
+                    "BATT_THERM_MAX_CC,BATT_THERM_MIN_CC,BATT_THERM_AVG_CC,BATT_THERM_DELTA_CC,BATT_THERM_HOTTEST_ID,BATT_THERM_COLDEST_ID,BATT_THERM_SESSION_MAX_CC,BATT_THERM_SESSION_MAX_DELTA_CC,BATT_THERM_SESSION_AVG_CC,"
+                    "BATT_CUR_SESSION_MAX_DISCHARGE_MA,BATT_CUR_SESSION_MAX_CHARGE_MA,BATT_CUR_LIFETIME_MAX_DISCHARGE_MA,"
+                    "VEH_FRESH,ADC_FRESH,GPS_FRESH,BMS_FRESH,TELEM_FRESH,RPM_FRESH,BATTSTATS_FRESH\n";
                 if (b_SD_Card_WriteSync(p_header)) {
                     b_logger_ready = true;
                     printf("[LOGGER] SD ready. Logging to: %s\r\n",
@@ -118,13 +121,17 @@ void vd_Logger_PrintBrokerData(void)
     AMS_Telemetry_Data_t    telem       = {0};
     AMS_Persistent_Config_t persist     = {0};
     AMS_Powertrain_Data_t   powertrain  = {0};
+    AMS_BMS_Data_t          bms         = {0};
+    AMS_BatteryStats_Data_t battstats   = {0};
 
-    bool b_adc_ok     = b_Broker_Get_ADCData(&adc);
-    bool b_veh_ok     = b_Broker_Get_VehicleState(&veh);
-    bool b_gps_ok     = b_Broker_Get_GPSData(&gps);
-    bool b_telem_ok   = b_Broker_Get_TelemetryData(&telem);
-    bool b_persist_ok = b_Broker_Get_PersistentConfig(&persist);
-    bool b_pt_ok      = b_Broker_Get_PowertrainData(&powertrain);
+    bool b_adc_ok       = b_Broker_Get_ADCData(&adc);
+    bool b_veh_ok       = b_Broker_Get_VehicleState(&veh);
+    bool b_gps_ok       = b_Broker_Get_GPSData(&gps);
+    bool b_telem_ok     = b_Broker_Get_TelemetryData(&telem);
+    bool b_persist_ok   = b_Broker_Get_PersistentConfig(&persist);
+    bool b_pt_ok        = b_Broker_Get_PowertrainData(&powertrain);
+    bool b_bms_ok       = b_Broker_Get_BMSData(&bms);
+    bool b_battstats_ok = b_Broker_Get_BatteryStats(&battstats);
 
     /* ------------------------------------------------------------------ */
     /* Top banner                                                           */
@@ -283,9 +290,78 @@ void vd_Logger_PrintBrokerData(void)
     }
 
     /* ------------------------------------------------------------------ */
-    /* 5. PERSISTENT CONFIG                                                 */
+    /* 5. BMS DATA  (LTC6813 — AMS_BMS_Task)                                */
     /* ------------------------------------------------------------------ */
-    vd_print_banner(COL_PERSISTENT, "[ 5 ]  PERSISTENT CONFIG  (Flash)");
+    vd_print_banner(COL_BMS, "[ 5 ]  BMS DATA  (pack safety)");
+
+    if (!b_bms_ok) {
+        printf(COL_WARN "    Broker read FAILED\r\n" ANSI_RESET);
+    } else {
+        PRINT_ROW("Pack voltage:",     "%5lu mV",  (unsigned long)bms.ui32_pack_voltage_mV);
+        PRINT_ROW("Pack current:",     "%5ld mA  (still 0 — no producer, see docs)",
+                  (long)bms.i32_pack_current_mA);
+        PRINT_ROW("Min cell:",         "%5u mV  (id %u)", (unsigned)bms.ui16_min_cell_mV,
+                  (unsigned)bms.ui8_min_cell_id);
+        PRINT_ROW("Max cell:",         "%5u mV  (id %u)", (unsigned)bms.ui16_max_cell_mV,
+                  (unsigned)bms.ui8_max_cell_id);
+        PRINT_ROW("Max cell temp:",    "%4d.%02d °C",
+                  (int)(bms.i16_max_cell_temp_cC / 100),
+                  (int)((bms.i16_max_cell_temp_cC < 0 ?
+                         -bms.i16_max_cell_temp_cC : bms.i16_max_cell_temp_cC) % 100));
+        PRINT_ROW("SOC:",              "%u.%01u %%  (still 0 — no producer, see docs)",
+                  (unsigned)(bms.soc_percent_x10 / 10u),
+                  (unsigned)(bms.soc_percent_x10 % 10u));
+
+        if (bms.ui32_fault_flags & BMS_FAULT_CELL_VOLTAGE) {
+            printf(COL_WARN "    FAULT: cell voltage out of range (BMS_FAULT_CELL_VOLTAGE)\r\n" ANSI_RESET);
+        } else {
+            PRINT_ROW("Fault flags:",  "0x%08lX", (unsigned long)bms.ui32_fault_flags);
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* 6. BATTERY STATS  (derived — AMS_Algorithms_Task)                    */
+    /* ------------------------------------------------------------------ */
+    vd_print_banner(COL_BATTSTATS, "[ 6 ]  BATTERY STATS  (derived)");
+
+    if (!b_battstats_ok) {
+        printf(COL_WARN "    Broker read FAILED\r\n" ANSI_RESET);
+    } else {
+        printf(COL_BATTSTATS "    -- charge (Ah moved) — still 0, no pack-current producer yet --\r\n" ANSI_RESET);
+        PRINT_ROW("Session discharged:", "%lu mAh", (unsigned long)battstats.charge.ui32_session_discharged_mAh);
+        PRINT_ROW("Session charged:",    "%lu mAh", (unsigned long)battstats.charge.ui32_session_charged_mAh);
+        PRINT_ROW("Lifetime discharged:", "%lu mAh", (unsigned long)battstats.charge.ui32_lifetime_discharged_mAh);
+        PRINT_ROW("Lifetime charged:",   "%lu mAh", (unsigned long)battstats.charge.ui32_lifetime_charged_mAh);
+
+        printf(COL_BATTSTATS "    -- thermal (real, from AMS_BMS_Task) --\r\n" ANSI_RESET);
+        PRINT_ROW("Max/min/avg temp:",  "%d.%02d / %d.%02d / %d.%02d °C",
+                  (int)(battstats.thermal.i16_max_cell_temp_cC / 100),
+                  (int)(battstats.thermal.i16_max_cell_temp_cC % 100),
+                  (int)(battstats.thermal.i16_min_cell_temp_cC / 100),
+                  (int)(battstats.thermal.i16_min_cell_temp_cC % 100),
+                  (int)(battstats.thermal.i16_avg_cell_temp_cC / 100),
+                  (int)(battstats.thermal.i16_avg_cell_temp_cC % 100));
+        PRINT_ROW("Delta temp:",        "%d.%02d °C  (hottest id %u, coldest id %u)",
+                  (int)(battstats.thermal.i16_delta_temp_cC / 100),
+                  (int)(battstats.thermal.i16_delta_temp_cC % 100),
+                  (unsigned)battstats.thermal.ui8_hottest_cell_id,
+                  (unsigned)battstats.thermal.ui8_coldest_cell_id);
+        PRINT_ROW("Session worst temp:", "%d.%02d °C  (max delta %d.%02d °C)",
+                  (int)(battstats.thermal.i16_session_max_temp_cC / 100),
+                  (int)(battstats.thermal.i16_session_max_temp_cC % 100),
+                  (int)(battstats.thermal.i16_session_max_delta_cC / 100),
+                  (int)(battstats.thermal.i16_session_max_delta_cC % 100));
+
+        printf(COL_BATTSTATS "    -- peak current — still 0, no pack-current producer yet --\r\n" ANSI_RESET);
+        PRINT_ROW("Session max discharge:", "%lu mA", (unsigned long)battstats.current.ui32_session_max_discharge_mA);
+        PRINT_ROW("Session max charge:",    "%lu mA", (unsigned long)battstats.current.ui32_session_max_charge_mA);
+        PRINT_ROW("Lifetime max discharge:", "%lu mA", (unsigned long)battstats.current.ui32_lifetime_max_discharge_mA);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* 7. PERSISTENT CONFIG                                                 */
+    /* ------------------------------------------------------------------ */
+    vd_print_banner(COL_PERSISTENT, "[ 7 ]  PERSISTENT CONFIG  (Flash)");
 
     if (!b_persist_ok) {
         printf(COL_WARN "    Broker read FAILED\r\n" ANSI_RESET);
@@ -311,8 +387,8 @@ void vd_Logger_PrintBrokerData(void) { }
 
 #endif /* FEATURE_LOGGER_PRINT_ENABLE */
 
-/* ---------- vd_Logger_TaskProcess --------------------------------------- */
-void vd_Logger_TaskProcess(void)
+/* ---------- vd_Logger_Manager_TaskProcess --------------------------------------- */
+void vd_Logger_Manager_TaskProcess(void)
 {
     /* Tracks when we last fired the terminal printer */
     uint32_t ui32_last_print_tick_ms = 0U;
@@ -366,7 +442,7 @@ void vd_Logger_TaskProcess(void)
                 printf("[LOGGER] WARNING: partial Broker snapshot (one or more domains failed)\r\n");
             }
 
-            char s_csv_row[400];
+            char s_csv_row[640];
             snprintf(s_csv_row, sizeof(s_csv_row),
                      "%lu,"
                      "%lu,%lu,%lu,%d,"
@@ -374,7 +450,10 @@ void vd_Logger_TaskProcess(void)
                      "%lu,%ld,%ld,%ld,%ld,"
                      "%lu,%ld,%ld,%ld,"
                      "%lu,%ld,%u,%u,%d,%u,%lu,"
-                     "%u,%u,%u,%u,%u,%u\n",
+                     "%lu,%lu,%lu,%lu,"
+                     "%d,%d,%d,%d,%u,%u,%d,%d,%d,"
+                     "%lu,%lu,%lu,"
+                     "%u,%u,%u,%u,%u,%u,%u\n",
                      (unsigned long)ui32_now_ms,
                      /* Vehicle */
                      (unsigned long)snap.vehicle.bateria_12v_mV,
@@ -398,7 +477,8 @@ void vd_Logger_TaskProcess(void)
                      (long)snap.telemetry.i32_lifetime_max_vel_kmh_x1000,
                      (long)snap.telemetry.i32_lifetime_max_accel_ms2_x1000,
                      (long)snap.telemetry.i32_lifetime_max_decel_ms2_x1000,
-                     /* BMS (placeholder — 0 until a BMS task exists) */
+                     /* BMS — cell voltages/temps/faults real (AMS_BMS_Task);
+                      * pack current/SOC still 0, no producer yet */
                      (unsigned long)snap.bms.ui32_pack_voltage_mV,
                      (long)snap.bms.i32_pack_current_mA,
                      (unsigned)snap.bms.ui16_min_cell_mV,
@@ -406,13 +486,33 @@ void vd_Logger_TaskProcess(void)
                      (int)snap.bms.i16_max_cell_temp_cC,
                      (unsigned)snap.bms.soc_percent_x10,
                      (unsigned long)snap.bms.ui32_fault_flags,
+                     /* Battery stats — charge (session/lifetime Ah moved) */
+                     (unsigned long)snap.battery_stats.charge.ui32_session_discharged_mAh,
+                     (unsigned long)snap.battery_stats.charge.ui32_session_charged_mAh,
+                     (unsigned long)snap.battery_stats.charge.ui32_lifetime_discharged_mAh,
+                     (unsigned long)snap.battery_stats.charge.ui32_lifetime_charged_mAh,
+                     /* Battery stats — thermal (this-sample + session-worst) */
+                     (int)snap.battery_stats.thermal.i16_max_cell_temp_cC,
+                     (int)snap.battery_stats.thermal.i16_min_cell_temp_cC,
+                     (int)snap.battery_stats.thermal.i16_avg_cell_temp_cC,
+                     (int)snap.battery_stats.thermal.i16_delta_temp_cC,
+                     (unsigned)snap.battery_stats.thermal.ui8_hottest_cell_id,
+                     (unsigned)snap.battery_stats.thermal.ui8_coldest_cell_id,
+                     (int)snap.battery_stats.thermal.i16_session_max_temp_cC,
+                     (int)snap.battery_stats.thermal.i16_session_max_delta_cC,
+                     (int)snap.battery_stats.thermal.i16_session_avg_temp_cC,
+                     /* Battery stats — peak current (session/lifetime) */
+                     (unsigned long)snap.battery_stats.current.ui32_session_max_discharge_mA,
+                     (unsigned long)snap.battery_stats.current.ui32_session_max_charge_mA,
+                     (unsigned long)snap.battery_stats.current.ui32_lifetime_max_discharge_mA,
                      /* Freshness — 1 = updated since last row, 0 = repeated/stale */
                      (unsigned)snap.safety.b_vehicle_data_fresh,
                      (unsigned)snap.safety.b_adc_data_fresh,
                      (unsigned)snap.safety.b_gps_data_fresh,
                      (unsigned)snap.safety.b_bms_data_fresh,
                      (unsigned)snap.safety.b_telemetry_data_fresh,
-                     (unsigned)snap.safety.b_powertrain_data_fresh);
+                     (unsigned)snap.safety.b_powertrain_data_fresh,
+                     (unsigned)snap.safety.b_battery_stats_fresh);
 
             if (b_SD_Card_WriteSync(s_csv_row))
             {

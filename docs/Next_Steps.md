@@ -29,7 +29,7 @@ pick this back up without re-deriving context.
 - Fixed `Algorithms_Sensors_ProcessVoltages()` reading hardcoded STM32 ROM
   addresses directly (would've segfaulted on host, violated the
   hardware-free Domain Logic rule) — now takes calibration values as params.
-- Fixed the Flash boot-order race: `vd_Persist_Task_Init()` now runs from
+- Fixed the Flash boot-order race: `vd_Flash_Task_Init()` now runs from
   `main()` before `osKernelStart()` instead of from inside
   `Flash_Memory_Start()`'s task body, so `AMS_Persistent_Config_t` is loaded
   before any other task can read it. Doc and code now agree

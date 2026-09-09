@@ -24,7 +24,7 @@ extern "C" {
  *        Call this BEFORE starting the RTOS scheduler.
  *        Safe to call even when TASK_SD_CARD_ENABLE == 0 (returns immediately).
  */
-void vd_Logger_Init(void);
+void vd_Logger_Task_Init(void);
 
 /**
  * @brief Infinite RTOS task loop for the Logger.
@@ -36,7 +36,7 @@ void vd_Logger_Init(void);
  *
  *        Invoke from 'SD_Card_Start' (or the equivalent task entry) in main.c / freertos.c.
  */
-void vd_Logger_TaskProcess(void);
+void vd_Logger_Manager_TaskProcess(void);
 
 /**
  * @brief Dumps a formatted, ANSI-coloured snapshot of ALL DataBroker structs

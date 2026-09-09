@@ -5,16 +5,16 @@
  *          Communicates with the DataBroker to load and save persistent config.
  *
  * Usage:
- *   vd_Persist_Task_Init() must run from main(), before osKernelStart() —
+ *   vd_Flash_Task_Init() must run from main(), before osKernelStart() —
  *   not from the task body — so the Broker holds real persisted config
  *   before any other task can read it.
  *     main() {
  *         ...
- *         vd_Persist_Task_Init();
+ *         vd_Flash_Task_Init();
  *         osKernelStart();
  *     }
  *     void Flash_Memory_Start(void *argument) {
- *         vd_Persist_TaskProcess();
+ *         vd_Flash_Manager_TaskProcess();
  *     }
  *
  * @author  Eneko Juanena
@@ -34,14 +34,14 @@
  *        the task body — so the Broker holds real persisted config before
  *        any other task starts reading it.
  */
-void vd_Persist_Task_Init(void);
+void vd_Flash_Task_Init(void);
 
 /**
  * @brief Infinite RTOS loop for the Flash persistence task.
  *        Placeholder for future scheduled save logic (e.g. periodic SOC save).
- *        Assumes vd_Persist_Task_Init() already ran in main().
+ *        Assumes vd_Flash_Task_Init() already ran in main().
  */
-void vd_Persist_TaskProcess(void);
+void vd_Flash_Manager_TaskProcess(void);
 
 /**
  * @brief Saves the current DataBroker config to Flash.

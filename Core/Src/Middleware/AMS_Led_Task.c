@@ -11,6 +11,8 @@
 #include "Drivers_Custom/AMS_led_driver.h"
 #include "AMS_DataTypes.h"
 #include "main.h"
+#include "FreeRTOS.h"
+#include "task.h"
 
 /* -----------------------------------------------------------------------
  * Configuration
@@ -63,6 +65,12 @@ static void led_channel_process(AMS_LED_Color_t color)
 {
     LedChannel_t *ch = &s_channels[color];
 
+    /* Critical section: ch->mode/toggle_tick/blink_end are also written by
+     * vd_LED_Manager_SetMode(), called from several other tasks (ADC, CAN,
+     * Logger) for their own colors. Without this, a SetMode() call landing
+     * mid-switch here could be read with a torn mode/blink_end pair — see
+     * the file header for which task owns which color. */
+    taskENTER_CRITICAL();
     switch (ch->mode)
     {
         case LED_PIN_OFF:
@@ -88,6 +96,7 @@ static void led_channel_process(AMS_LED_Color_t color)
             }
             break;
     }
+    taskEXIT_CRITICAL();
 }
 
 /* -----------------------------------------------------------------------
@@ -109,6 +118,13 @@ void vd_LED_Manager_SetMode(AMS_LED_Color_t color, AMS_LED_PinMode_t mode)
     if (color >= LED_COLOR_COUNT) { return; }
 
     LedChannel_t *ch = &s_channels[color];
+
+    /* Critical section: see led_channel_process()'s comment. Must cover
+     * ch->mode together with whichever field the new mode also writes
+     * (blink_end for BLINK, toggle_tick for TOGGLE) so the reader in
+     * vd_LED_Manager_Process() never observes one updated without the
+     * other. */
+    taskENTER_CRITICAL();
     ch->mode = mode;
 
     switch (mode)
@@ -130,6 +146,7 @@ void vd_LED_Manager_SetMode(AMS_LED_Color_t color, AMS_LED_PinMode_t mode)
             ch->blink_end = HAL_GetTick() + led_blink_duration_ms[color];
             break;
     }
+    taskEXIT_CRITICAL();
 }
 
 void vd_LED_Manager_Process(void)

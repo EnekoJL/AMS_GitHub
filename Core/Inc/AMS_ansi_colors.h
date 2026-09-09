@@ -84,6 +84,8 @@
 #define COL_GPS         ANSI_BOLD ANSI_FG_YELLOW
 #define COL_TELEMETRY   ANSI_BOLD ANSI_FG_MAGENTA
 #define COL_PERSISTENT  ANSI_BOLD ANSI_FG_BLUE
+#define COL_BMS         ANSI_BOLD ANSI_FG_ORANGE
+#define COL_BATTSTATS   ANSI_BOLD ANSI_FG_RED
 
 /** Generic UI roles */
 #define COL_LABEL       ANSI_DIM  ANSI_FG_WHITE  /**< Field name (dimmed)   */

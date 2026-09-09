@@ -31,9 +31,12 @@
  *          latest, not every sample" property, but GPS fixes arrive far
  *          slower than this loop polls, so it's a non-issue there.
  *
- *          THERMAL (5th section, below) reads AMS_BMS_Data_t.i16_cell_temp_cC[],
+ *          THERMAL (4th section, below) reads AMS_BMS_Data_t.i16_cell_temp_cC[],
  *          written by AMS_BMS_Task every ~250ms — real as of that task
  *          existing, no longer a placeholder like CURRENT/SOC above.
+ *
+ *          Five sections total, in order: Current, Charge/SOC, Telemetry,
+ *          Thermal, LED.
  */
 
 #include "Middleware/AMS_Algorithms_Task.h"

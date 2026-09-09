@@ -4,7 +4,7 @@
 The `AMS_Flash_Task` is the persistent storage manager. It ensures critical data—such as the battery's State of Charge (SOC) and lifecycle metrics—survives power cycles. It employs a custom wear-leveling algorithm designed specifically for the STM32's internal flash memory structure.
 
 ## Execution Model: Boot Recovery & Periodic
-1. **Boot Initialization (`vd_Persist_Task_Init`):** 
+1. **Boot Initialization (`vd_Flash_Task_Init`):** 
    * Before the main FreeRTOS scheduler even starts, the system scans both allocated flash sectors.
    * It determines the most recent valid record (verifying Magic Word and CRC) and loads the `AMS_Persistent_Config_t` into the Data Broker.
 2. **Periodic Saving:** 

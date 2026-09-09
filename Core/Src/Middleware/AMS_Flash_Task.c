@@ -159,14 +159,14 @@ static void vd_Persist_Init(void) {
     // Cargar datos al DataBroker
     if (found_any) {
         AMS_Persistent_Config_t temp_cfg = best_record.config;
-        vd_Broker_Set_PersistentConfig(&temp_cfg);
+        b_Broker_Update_PersistentConfig(&temp_cfg);
     } else {
         // Valores por defecto si la flash está vacía
         AMS_Persistent_Config_t defaults = {
             .soc_percent_x10 = 1000u,  // 100.0% (asumimos cargado en el primer boot)
             .cycle_count     = 0u
         };
-        vd_Broker_Set_PersistentConfig(&defaults);
+        b_Broker_Update_PersistentConfig(&defaults);
     }
 }
 
@@ -218,7 +218,7 @@ bool b_Persist_SaveConfig(void) {
     // 5. Avanzar el puntero y actualizar datos en el Broker con el cycle_count correcto
     s_state.next_write_offset += FLASH_EEPROM_RECORD_SIZE;
     s_state.last_slot_index++;
-    vd_Broker_Set_PersistentConfig(&current_cfg);
+    b_Broker_Update_PersistentConfig(&current_cfg);
 
     return true;
 }
@@ -237,7 +237,7 @@ uint32_t u32_Persist_GetLastSlotIndex(void) {
  *        loads it into the DataBroker (or sets defaults on blank Flash),
  *        and prints a boot diagnostic over UART.
  */
-void vd_Persist_Task_Init(void) {
+void vd_Flash_Task_Init(void) {
     vd_Persist_Init();
 
     /* Boot diagnostic: show the SOC loaded from Flash */
@@ -253,7 +253,7 @@ void vd_Persist_Task_Init(void) {
  * @brief Infinite RTOS loop for the Flash persistence task.
  *        Placeholder for future scheduled save logic (e.g. periodic SOC save).
  */
-void vd_Persist_TaskProcess(void) {
+void vd_Flash_Manager_TaskProcess(void) {
     for (;;) {
         /* TODO: add periodic b_Persist_SaveConfig() call here when needed */
         osDelay(1000);

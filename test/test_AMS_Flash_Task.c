@@ -81,14 +81,14 @@ void test_T01_blank_flash_falls_back_to_defaults(void)
     b_Flash_IsAddressErased_ExpectAndReturn(FLASH_EEPROM_SECTOR_B_ADDR, true);
 
     AMS_Persistent_Config_t expected_defaults = { .soc_percent_x10 = 1000u, .cycle_count = 0u };
-    vd_Broker_Set_PersistentConfig_Expect(&expected_defaults);
+    b_Broker_Update_PersistentConfig_ExpectAndReturn(&expected_defaults, true);
 
-    /* Boot diagnostic printf inside vd_Persist_Task_Init() reads it back */
+    /* Boot diagnostic printf inside vd_Flash_Task_Init() reads it back */
     b_Broker_Get_PersistentConfig_ExpectAndReturn(NULL, true);
     b_Broker_Get_PersistentConfig_IgnoreArg_p_out();
     b_Broker_Get_PersistentConfig_ReturnThruPtr_p_out(&expected_defaults);
 
-    vd_Persist_Task_Init();
+    vd_Flash_Task_Init();
 }
 
 /* =========================================================================
@@ -116,13 +116,13 @@ void test_T03_valid_record_in_sector_A_only_loads_A(void)
 
     b_Flash_IsAddressErased_ExpectAndReturn(FLASH_EEPROM_SECTOR_B_ADDR, true);
 
-    vd_Broker_Set_PersistentConfig_Expect(&recA.config);
+    b_Broker_Update_PersistentConfig_ExpectAndReturn(&recA.config, true);
 
     b_Broker_Get_PersistentConfig_ExpectAndReturn(NULL, true);
     b_Broker_Get_PersistentConfig_IgnoreArg_p_out();
     b_Broker_Get_PersistentConfig_ReturnThruPtr_p_out(&recA.config);
 
-    vd_Persist_Task_Init();
+    vd_Flash_Task_Init();
 }
 
 /* =========================================================================
@@ -146,13 +146,13 @@ void test_T04_both_valid_higher_cycle_count_wins_sector_B(void)
     b_Flash_ReadRecord_ReturnThruPtr_p_out(&recB);
     b_Flash_IsAddressErased_ExpectAndReturn(FLASH_EEPROM_SECTOR_B_ADDR + FLASH_EEPROM_RECORD_SIZE, true);
 
-    vd_Broker_Set_PersistentConfig_Expect(&recB.config);
+    b_Broker_Update_PersistentConfig_ExpectAndReturn(&recB.config, true);
 
     b_Broker_Get_PersistentConfig_ExpectAndReturn(NULL, true);
     b_Broker_Get_PersistentConfig_IgnoreArg_p_out();
     b_Broker_Get_PersistentConfig_ReturnThruPtr_p_out(&recB.config);
 
-    vd_Persist_Task_Init();
+    vd_Flash_Task_Init();
 }
 
 /* =========================================================================
@@ -175,13 +175,13 @@ void test_T05_both_valid_higher_cycle_count_wins_sector_A(void)
     b_Flash_ReadRecord_ReturnThruPtr_p_out(&recB);
     b_Flash_IsAddressErased_ExpectAndReturn(FLASH_EEPROM_SECTOR_B_ADDR + FLASH_EEPROM_RECORD_SIZE, true);
 
-    vd_Broker_Set_PersistentConfig_Expect(&recA.config);
+    b_Broker_Update_PersistentConfig_ExpectAndReturn(&recA.config, true);
 
     b_Broker_Get_PersistentConfig_ExpectAndReturn(NULL, true);
     b_Broker_Get_PersistentConfig_IgnoreArg_p_out();
     b_Broker_Get_PersistentConfig_ReturnThruPtr_p_out(&recA.config);
 
-    vd_Persist_Task_Init();
+    vd_Flash_Task_Init();
 }
 
 /* =========================================================================
@@ -204,11 +204,11 @@ void test_T06_corrupt_crc_is_rejected_falls_back_to_defaults(void)
     b_Flash_IsAddressErased_ExpectAndReturn(FLASH_EEPROM_SECTOR_B_ADDR, true);
 
     AMS_Persistent_Config_t expected_defaults = { .soc_percent_x10 = 1000u, .cycle_count = 0u };
-    vd_Broker_Set_PersistentConfig_Expect(&expected_defaults);
+    b_Broker_Update_PersistentConfig_ExpectAndReturn(&expected_defaults, true);
 
     b_Broker_Get_PersistentConfig_ExpectAndReturn(NULL, true);
     b_Broker_Get_PersistentConfig_IgnoreArg_p_out();
     b_Broker_Get_PersistentConfig_ReturnThruPtr_p_out(&expected_defaults);
 
-    vd_Persist_Task_Init();
+    vd_Flash_Task_Init();
 }
